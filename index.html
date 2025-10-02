@@ -69,6 +69,11 @@
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
 
+    <!-- Indicador de Carregamento -->
+    <div id="loading-indicator" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-50 flex items-center justify-center">
+        <p class="text-lg font-semibold animate-pulse">Carregando dados...</p>
+    </div>
+
     <div id="app-container" class="max-w-md mx-auto p-4 pb-20"> <!-- Padding inferior para não sobrepor o rodapé -->
 
         <!-- 1. TELA INICIAL -->
@@ -278,8 +283,15 @@
                     </button>
                 </div>
                  <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-3">Backup</h3>
-                    <button id="admin-backup-btn" class="w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors clickable">
+                    <h3 class="text-lg font-semibold mb-3">Backup e Sincronização</h3>
+                     <div class="space-y-2">
+                        <div>
+                            <label for="data-url-input" class="block text-sm font-medium mb-1">URL do Arquivo JSON para Sincronização</label>
+                            <input type="text" id="data-url-input" class="w-full bg-gray-100 dark:bg-gray-600 p-2 rounded" placeholder="https://exemplo.com/dados.json">
+                        </div>
+                        <button id="save-data-url-btn" class="mt-2 w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 clickable">Salvar URL</button>
+                    </div>
+                    <button id="admin-backup-btn" class="mt-4 w-full bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors clickable">
                         Fazer Backup (Exportar)
                     </button>
                 </div>
@@ -436,7 +448,8 @@
             version: '1.0',
             appSettings: {
                 logoUrl: '',
-                logoSize: 8 
+                logoSize: 8,
+                dataUrl: ''
             }
         };
         
@@ -450,25 +463,48 @@
             }
         }
 
-        function loadData() {
+        async function loadData() {
+            const loadingIndicator = document.getElementById('loading-indicator');
+            loadingIndicator.classList.remove('hidden');
+
             try {
+                // Tenta carregar dados locais primeiro como fallback
                 const savedData = localStorage.getItem('superAppMDRData');
                 if (savedData) {
-                    const parsedData = JSON.parse(savedData);
-                    // Garante que a estrutura base exista antes de atribuir
-                    Object.assign(appData, JSON.parse(JSON.stringify(initialData)), parsedData);
+                    Object.assign(appData, JSON.parse(savedData));
                 } else {
-                    Object.assign(appData, JSON.parse(JSON.stringify(initialData))); // Use deep copy
+                    Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
                 }
+
+                // Se houver uma URL de dados, tenta buscar os dados mais recentes
+                if (appData.appSettings && appData.appSettings.dataUrl) {
+                    try {
+                        const response = await fetch(appData.appSettings.dataUrl);
+                        if (response.ok) {
+                            const remoteData = await response.json();
+                            Object.assign(appData, remoteData);
+                            saveData(); // Salva os dados mais recentes localmente
+                            console.log("Dados sincronizados com sucesso.");
+                        } else {
+                            console.warn("Falha ao buscar dados remotos. Usando dados locais.");
+                        }
+                    } catch (error) {
+                        console.error("Erro na sincronização. Usando dados locais.", error);
+                    }
+                }
+                
+                // Garante que a estrutura base exista
                 if (!appData.version) appData.version = '1.0';
-                if (!appData.appSettings) appData.appSettings = { logoUrl: '', logoSize: 8 };
+                if (!appData.appSettings) appData.appSettings = { logoUrl: '', logoSize: 8, dataUrl: '' };
 
             } catch (error) {
                 console.error("Erro ao carregar os dados:", error);
                 Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
+            } finally {
+                updateVersionDisplay();
+                renderHeader();
+                loadingIndicator.classList.add('hidden');
             }
-            updateVersionDisplay();
-            renderHeader();
         }
         
         function updateVersion() {
@@ -838,9 +874,12 @@
 
             const logoUrlInput = document.getElementById('logo-url-input');
             const logoSizeSlider = document.getElementById('logo-size-slider');
+            const dataUrlInput = document.getElementById('data-url-input');
+
             if(logoUrlInput && appData.appSettings) {
                 logoUrlInput.value = appData.appSettings.logoUrl || '';
                 logoSizeSlider.value = appData.appSettings.logoSize || 8;
+                dataUrlInput.value = appData.appSettings.dataUrl || '';
             }
 
             renderAdminCategories();
@@ -1048,6 +1087,14 @@
                 appData.appSettings.logoSize = size;
                 renderHeader();
                 updateVersion();
+            }
+            if (target.id === 'save-data-url-btn') {
+                const url = document.getElementById('data-url-input').value;
+                if (!appData.appSettings) appData.appSettings = {};
+                appData.appSettings.dataUrl = url;
+                updateVersion();
+                target.innerText = "URL Salva!";
+                setTimeout(() => target.innerText = "Salvar URL", 2000);
             }
 
 
@@ -1358,13 +1405,12 @@
                 try {
                     const importedData = JSON.parse(e.target.result);
                     showConfirmationModal('Importar Dados', 'Tem certeza que deseja substituir todos os dados atuais? Esta ação não pode ser desfeita.',
-                        () => {
-                            // Limpa o appData atual antes de carregar o novo
+                        async () => {
                             Object.keys(appData).forEach(key => delete appData[key]);
                             Object.assign(appData, importedData);
                             if (!appData.version) appData.version = '1.0';
                             saveData();
-                            loadData(); // Recarrega os dados para garantir consistência e aplicar defaults
+                            await loadData();
                             renderHomeScreen();
                             if (document.getElementById('admin-screen').classList.contains('active')) { showAdminPanel(); }
                         }
@@ -1384,10 +1430,11 @@
 
 
         // --- INICIALIZAÇÃO ---
-        loadData();
-        renderHomeScreen();
+        window.onload = async () => {
+            await loadData();
+            renderHomeScreen();
+        };
     </script>
 </body>
 </html>
-
 
