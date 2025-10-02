@@ -469,7 +469,9 @@
                         const response = await fetch(dataUrl + '?t=' + new Date().getTime()); // Cache busting
                         if (response.ok) {
                             const remoteData = await response.json();
-                            Object.assign(appData, remoteData);
+                            // JSONBin.io wraps the data in a "record" property
+                            const actualData = remoteData.record ? remoteData.record : remoteData;
+                            Object.assign(appData, actualData);
                             saveData();
                             console.log("Dados sincronizados com sucesso.");
                             dataLoaded = true;
@@ -873,12 +875,10 @@
 
             const logoUrlInput = document.getElementById('logo-url-input');
             const logoSizeSlider = document.getElementById('logo-size-slider');
-            const dataUrlInput = document.getElementById('data-url-input');
-
+            
             if(logoUrlInput && appData.appSettings) {
                 logoUrlInput.value = appData.appSettings.logoUrl || '';
                 logoSizeSlider.value = appData.appSettings.logoSize || 8;
-                dataUrlInput.value = initialData.appSettings.dataUrl || '';
             }
 
             renderAdminCategories();
@@ -1086,14 +1086,6 @@
                 appData.appSettings.logoSize = size;
                 renderHeader();
                 updateVersion();
-            }
-             if (target.id === 'save-data-url-btn') {
-                const url = document.getElementById('data-url-input').value;
-                if (!appData.appSettings) appData.appSettings = {};
-                appData.appSettings.dataUrl = url;
-                updateVersion();
-                target.innerText = "URL Salva!";
-                setTimeout(() => target.innerText = "Salvar URL", 2000);
             }
 
 
@@ -1431,7 +1423,6 @@
         // --- INICIALIZAÇÃO ---
         window.onload = async () => {
             await loadData();
-            renderHomeScreen();
         };
     </script>
 </body>
