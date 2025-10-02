@@ -449,7 +449,7 @@
             appSettings: {
                 logoUrl: '',
                 logoSize: 8,
-                dataUrl: ''
+                dataUrl: 'COLE_A_URL_DO_SEU_ARQUIVO_JSON_AQUI'
             }
         };
         
@@ -467,44 +467,48 @@
             const loadingIndicator = document.getElementById('loading-indicator');
             loadingIndicator.classList.remove('hidden');
 
-            try {
-                // Tenta carregar dados locais primeiro como fallback
-                const savedData = localStorage.getItem('superAppMDRData');
-                if (savedData) {
-                    Object.assign(appData, JSON.parse(savedData));
-                } else {
+            let dataLoaded = false;
+            const dataUrl = initialData.appSettings.dataUrl;
+
+            if (dataUrl && dataUrl !== https://api.jsonbin.io/v3/b/68de94b8d0ea881f4092f49c) {
+                try {
+                    const response = await fetch(dataUrl + '?t=' + new Date().getTime()); // Cache busting
+                    if (response.ok) {
+                        const remoteData = await response.json();
+                        Object.assign(appData, remoteData);
+                        saveData();
+                        console.log("Dados sincronizados com sucesso.");
+                        dataLoaded = true;
+                    } else {
+                        console.warn("Falha ao buscar dados remotos. Tentando carregar dados locais.");
+                    }
+                } catch (error) {
+                    console.error("Erro na sincronização. Tentando carregar dados locais.", error);
+                }
+            }
+            
+            if (!dataLoaded) {
+                try {
+                    const savedData = localStorage.getItem('superAppMDRData');
+                    if (savedData) {
+                        Object.assign(appData, JSON.parse(savedData));
+                        console.log("Dados locais carregados.");
+                    } else {
+                        Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
+                        console.log("Dados iniciais carregados.");
+                    }
+                } catch (error) {
+                    console.error("Erro ao carregar dados locais, usando dados iniciais.", error);
                     Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
                 }
-
-                // Se houver uma URL de dados, tenta buscar os dados mais recentes
-                if (appData.appSettings && appData.appSettings.dataUrl) {
-                    try {
-                        const response = await fetch(appData.appSettings.dataUrl);
-                        if (response.ok) {
-                            const remoteData = await response.json();
-                            Object.assign(appData, remoteData);
-                            saveData(); // Salva os dados mais recentes localmente
-                            console.log("Dados sincronizados com sucesso.");
-                        } else {
-                            console.warn("Falha ao buscar dados remotos. Usando dados locais.");
-                        }
-                    } catch (error) {
-                        console.error("Erro na sincronização. Usando dados locais.", error);
-                    }
-                }
-                
-                // Garante que a estrutura base exista
-                if (!appData.version) appData.version = '1.0';
-                if (!appData.appSettings) appData.appSettings = { logoUrl: '', logoSize: 8, dataUrl: '' };
-
-            } catch (error) {
-                console.error("Erro ao carregar os dados:", error);
-                Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
-            } finally {
-                updateVersionDisplay();
-                renderHeader();
-                loadingIndicator.classList.add('hidden');
             }
+            
+            if (!appData.version) appData.version = '1.0';
+            if (!appData.appSettings) appData.appSettings = { logoUrl: '', logoSize: 8, dataUrl: initialData.appSettings.dataUrl };
+
+            updateVersionDisplay();
+            renderHeader();
+            loadingIndicator.classList.add('hidden');
         }
         
         function updateVersion() {
