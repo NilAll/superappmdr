@@ -283,7 +283,7 @@
                     </button>
                 </div>
                  <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
-                    <h3 class="text-lg font-semibold mb-3">Backup e Sincronização</h3>
+                    <h3 class="text-lg font-semibold mb-3">Backup</h3>
                     <button id="admin-backup-btn" class="mt-4 w-full bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors clickable">
                         Fazer Backup (Exportar)
                     </button>
@@ -442,7 +442,7 @@
             appSettings: {
                 logoUrl: '',
                 logoSize: 8,
-                dataUrl: 'https://github.com/NilAll/bkpsuperappmdr/blob/22fbd4845d12659f1e86abf0b3158361a1fb5726/super-app-mdr-dados-20251002.json'
+                dataUrl: 'https://raw.githubusercontent.com/NilAll/bkpsuperappmdr/main/super-app-mdr-dados-20251002.json'
             }
         };
         
@@ -462,9 +462,9 @@
 
             try {
                 let dataLoaded = false;
-                const dataUrl = in	.dataUrl;
+                const dataUrl = initialData.appSettings.dataUrl;
 
-                if (dataUrl && dataUrl !== 'https://github.com/NilAll/bkpsuperappmdr/blob/22fbd4845d12659f1e86abf0b3158361a1fb5726/super-app-mdr-dados-20251002.json') {
+                if (dataUrl && dataUrl !== 'COLE_A_URL_DO_SEU_ARQUIVO_JSON_AQUI') {
                     try {
                         const response = await fetch(dataUrl + '?t=' + new Date().getTime()); // Cache busting
                         if (response.ok) {
@@ -878,7 +878,7 @@
             if(logoUrlInput && appData.appSettings) {
                 logoUrlInput.value = appData.appSettings.logoUrl || '';
                 logoSizeSlider.value = appData.appSettings.logoSize || 8;
-                dataUrlInput.value = appData.appSettings.dataUrl || initialData.appSettings.dataUrl;
+                dataUrlInput.value = initialData.appSettings.dataUrl || '';
             }
 
             renderAdminCategories();
