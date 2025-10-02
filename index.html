@@ -464,7 +464,7 @@
                 let dataLoaded = false;
                 const dataUrl = in	.dataUrl;
 
-                if (dataUrl && dataUrl !== 'COLE_A_URL_DO_SEU_ARQUIVO_JSON_AQUI') {
+                if (dataUrl && dataUrl !== 'https://github.com/NilAll/bkpsuperappmdr/blob/22fbd4845d12659f1e86abf0b3158361a1fb5726/super-app-mdr-dados-20251002.json') {
                     try {
                         const response = await fetch(dataUrl + '?t=' + new Date().getTime()); // Cache busting
                         if (response.ok) {
