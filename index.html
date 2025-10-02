@@ -284,13 +284,6 @@
                 </div>
                  <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
                     <h3 class="text-lg font-semibold mb-3">Backup e Sincronização</h3>
-                     <div class="space-y-2">
-                        <div>
-                            <label for="data-url-input" class="block text-sm font-medium mb-1">URL do Arquivo JSON para Sincronização</label>
-                            <input type="text" id="data-url-input" class="w-full bg-gray-100 dark:bg-gray-600 p-2 rounded" placeholder="https://exemplo.com/dados.json">
-                        </div>
-                        <button id="save-data-url-btn" class="mt-2 w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 clickable">Salvar URL</button>
-                    </div>
                     <button id="admin-backup-btn" class="mt-4 w-full bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors clickable">
                         Fazer Backup (Exportar)
                     </button>
@@ -449,7 +442,7 @@
             appSettings: {
                 logoUrl: '',
                 logoSize: 8,
-                dataUrl: 'COLE_A_URL_DO_SEU_ARQUIVO_JSON_AQUI'
+                dataUrl: 'https://github.com/NilAll/bkpsuperappmdr/blob/22fbd4845d12659f1e86abf0b3158361a1fb5726/super-app-mdr-dados-20251002.json'
             }
         };
         
@@ -467,28 +460,28 @@
             const loadingIndicator = document.getElementById('loading-indicator');
             loadingIndicator.classList.remove('hidden');
 
-            let dataLoaded = false;
-            const dataUrl = initialData.appSettings.dataUrl;
+            try {
+                let dataLoaded = false;
+                const dataUrl = in	.dataUrl;
 
-            if (dataUrl && dataUrl !== https://api.jsonbin.io/v3/b/68de94b8d0ea881f4092f49c) {
-                try {
-                    const response = await fetch(dataUrl + '?t=' + new Date().getTime()); // Cache busting
-                    if (response.ok) {
-                        const remoteData = await response.json();
-                        Object.assign(appData, remoteData);
-                        saveData();
-                        console.log("Dados sincronizados com sucesso.");
-                        dataLoaded = true;
-                    } else {
-                        console.warn("Falha ao buscar dados remotos. Tentando carregar dados locais.");
+                if (dataUrl && dataUrl !== 'COLE_A_URL_DO_SEU_ARQUIVO_JSON_AQUI') {
+                    try {
+                        const response = await fetch(dataUrl + '?t=' + new Date().getTime()); // Cache busting
+                        if (response.ok) {
+                            const remoteData = await response.json();
+                            Object.assign(appData, remoteData);
+                            saveData();
+                            console.log("Dados sincronizados com sucesso.");
+                            dataLoaded = true;
+                        } else {
+                            console.warn("Falha ao buscar dados remotos. Usando dados locais.");
+                        }
+                    } catch (error) {
+                        console.error("Erro na sincronização. Usando dados locais.", error);
                     }
-                } catch (error) {
-                    console.error("Erro na sincronização. Tentando carregar dados locais.", error);
                 }
-            }
-            
-            if (!dataLoaded) {
-                try {
+                
+                if (!dataLoaded) {
                     const savedData = localStorage.getItem('superAppMDRData');
                     if (savedData) {
                         Object.assign(appData, JSON.parse(savedData));
@@ -497,18 +490,20 @@
                         Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
                         console.log("Dados iniciais carregados.");
                     }
-                } catch (error) {
-                    console.error("Erro ao carregar dados locais, usando dados iniciais.", error);
-                    Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
                 }
-            }
-            
-            if (!appData.version) appData.version = '1.0';
-            if (!appData.appSettings) appData.appSettings = { logoUrl: '', logoSize: 8, dataUrl: initialData.appSettings.dataUrl };
+                
+                if (!appData.version) appData.version = '1.0';
+                if (!appData.appSettings) appData.appSettings = { ...initialData.appSettings };
 
-            updateVersionDisplay();
-            renderHeader();
-            loadingIndicator.classList.add('hidden');
+            } catch (error) {
+                console.error("Erro crítico ao carregar dados, usando dados iniciais.", error);
+                Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
+            } finally {
+                updateVersionDisplay();
+                renderHeader();
+                renderHomeScreen();
+                loadingIndicator.classList.add('hidden');
+            }
         }
         
         function updateVersion() {
@@ -883,7 +878,7 @@
             if(logoUrlInput && appData.appSettings) {
                 logoUrlInput.value = appData.appSettings.logoUrl || '';
                 logoSizeSlider.value = appData.appSettings.logoSize || 8;
-                dataUrlInput.value = appData.appSettings.dataUrl || '';
+                dataUrlInput.value = appData.appSettings.dataUrl || initialData.appSettings.dataUrl;
             }
 
             renderAdminCategories();
@@ -1081,8 +1076,8 @@
             if (target.id === 'back-to-admin-overview-from-edit' || target.id === 'back-to-admin-overview-from-delivery' || target.id === 'back-to-admin-overview-from-ads') { showAdminPanel(); }
             if (!target.closest('#admin-menu-button') && !target.closest('#admin-menu')) { document.getElementById('admin-menu').classList.add('hidden'); }
             if (target.closest('#admin-login-menu-item')) { document.getElementById('admin-menu').classList.add('hidden'); showScreen('login-screen'); return; }
-            if (target.closest('#restore-backup-icon') || target.id === 'import-data-btn') { document.getElementById('admin-menu')?.classList.add('hidden'); document.getElementById('import-file-input').click(); return; }
-            if (target.id === 'admin-backup-btn' || target.id === 'export-data-btn') { document.getElementById('admin-menu')?.classList.add('hidden'); exportData(); return; }
+            if (target.closest('#restore-backup-icon')) { document.getElementById('import-file-input').click(); return; }
+            if (target.id === 'admin-backup-btn') { exportData(); return; }
             if (target.id === 'save-logo-btn') {
                 const url = document.getElementById('logo-url-input').value;
                 const size = document.getElementById('logo-size-slider').value;
@@ -1092,7 +1087,7 @@
                 renderHeader();
                 updateVersion();
             }
-            if (target.id === 'save-data-url-btn') {
+             if (target.id === 'save-data-url-btn') {
                 const url = document.getElementById('data-url-input').value;
                 if (!appData.appSettings) appData.appSettings = {};
                 appData.appSettings.dataUrl = url;
