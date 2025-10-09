@@ -1,84 +1,1515 @@
-<script>
-    // --- BANCO DE DADOS E PERSISTÊNCIA ---
-    let initialData = { /* ... (teus dados iniciais originais) ... */ };
-    let appData = {};
-
-    function saveData() {
-        try {
-            localStorage.setItem('superAppMDRData', JSON.stringify(appData));
-        } catch (error) {
-            console.error("Erro ao salvar os dados:", error);
+<!DOCTYPE html>
+<html lang="pt-br" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super App MDR - Guia da Cidade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
         }
-    }
-
-    // ✅ NOVA FUNÇÃO ATUALIZADA
-    async function loadData() {
-        const loadingIndicator = document.getElementById('loading-indicator');
-        if (loadingIndicator) loadingIndicator.classList.remove('hidden');
-
-        // 👉 Substitui este link pelo teu link RAW do GitHub:
-        const onlineBackupUrl = "https://raw.githubusercontent.com/NilAll/bkpsuperappmdr/refs/heads/main/super-app-mdr-dados-20251002%20(2).json";
-
-        try {
-            // 1️⃣ Tenta carregar o JSON hospedado no GitHub
-            const response = await fetch(onlineBackupUrl, { cache: "no-store" });
-            if (!response.ok) throw new Error("Não foi possível carregar o backup online");
-
-            const remoteData = await response.json();
-            Object.assign(appData, remoteData);
-            console.log("✅ Dados importados do backup online.");
-
-            saveData(); // Salva localmente para uso offline
-            showToast("✅ Dados atualizados do servidor!");
-        } catch (error) {
-            console.warn("⚠️ Falha ao carregar backup online:", error.message);
-
-            // 2️⃣ Caso falhe, carrega do localStorage
-            const savedData = localStorage.getItem("superAppMDRData");
-            if (savedData) {
-                Object.assign(appData, JSON.parse(savedData));
-                console.log("🔄 Dados carregados do armazenamento local.");
-                showToast("📦 Dados locais carregados.");
-            } else {
-                Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
-                console.log("📦 Dados padrão iniciais carregados.");
-                showToast("🆕 Dados iniciais carregados.");
+        /* Estilo para a transição suave entre telas */
+        .screen {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .screen.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .cart-item-enter {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
             }
-        } finally {
-            if (!appData.version) appData.version = "1.0";
-            if (!appData.appSettings) appData.appSettings = { logoUrl: "", logoSize: 8 };
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        /* Animação para o botão do carrinho */
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0) scale(1.1); }
+          20%, 80% { transform: translate3d(2px, 0, 0) scale(1.1); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0) scale(1.1); }
+          40%, 60% { transform: translate3d(4px, 0, 0) scale(1.1); }
+        }
+        .shake {
+          animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        #ad-banner-container img {
+            transition: opacity 0.5s ease-in-out;
+        }
+        /* Animação de clique */
+        .clickable {
+            transition: transform 0.1s ease-in-out;
+        }
+        .clickable:active {
+            transform: scale(0.95);
+        }
+    </style>
+    <script>
+        // Configuração do tema escuro/claro
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark')
+        } else {
+          document.documentElement.classList.remove('dark')
+        }
+    </script>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
 
+    <div id="app-container" class="max-w-md mx-auto p-4 pb-20"> <!-- Padding inferior para não sobrepor o rodapé -->
+
+        <!-- 1. TELA INICIAL -->
+        <div id="home-screen" class="screen active">
+            <!-- Topo -->
+            <header class="flex justify-between items-center py-4">
+                <div id="logo-container">
+                    <h1 class="text-2xl font-bold text-blue-600 dark:text-blue-400">Super App MDR</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="restore-backup-icon" class="text-gray-600 dark:text-gray-300 hover:text-blue-500 clickable" title="Restaurar Backup">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                    </button>
+                    <button class="text-gray-600 dark:text-gray-300 hover:text-blue-500 clickable">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </button>
+                    <button class="text-gray-600 dark:text-gray-300 hover:text-blue-500 clickable">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                        </svg>
+                    </button>
+                    <div class="relative flex items-center">
+                         <button id="admin-menu-button" class="text-gray-600 dark:text-gray-300 hover:text-blue-500 clickable">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                         </button>
+                         <!-- Dropdown Menu -->
+                         <div id="admin-menu" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-20 ring-1 ring-black ring-opacity-5">
+                             <div class="py-1">
+                                <a href="#" id="admin-login-menu-item" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Acesso Restrito</a>
+                             </div>
+                         </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Barra de Busca -->
+            <div id="search-wrapper" class="relative mt-2 mb-4">
+                <input id="search-input" type="text" placeholder="O que você procura?" class="w-full bg-gray-200 dark:bg-gray-800 border-none rounded-full py-3 px-6 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow" autocomplete="off">
+                <div class="absolute right-4 top-1/2 -translate-y-1/2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </div>
+                <!-- Container para os resultados da busca -->
+                <div id="search-results-container" class="absolute w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg mt-2 z-10 hidden max-h-80 overflow-y-auto"></div>
+            </div>
+            <!-- Cards de Categorias -->
+            <div id="category-container" class="grid grid-cols-3 gap-3">
+                <!-- Os cards de categoria serão gerados pelo JavaScript -->
+            </div>
+            <!-- Supercard de Publicidade -->
+            <div id="ad-banner-container" class="mt-3 rounded-xl overflow-hidden shadow-lg h-[125px] bg-gray-200 dark:bg-gray-800">
+                <!-- Banner dinâmico -->
+            </div>
+        </div>
+
+        <!-- 2. TELA DE SUBCATEGORIAS -->
+        <div id="subcategories-screen" class="screen">
+            <header class="flex justify-between items-center py-4 mb-4">
+                <div class="flex items-center">
+                    <button class="back-to-home p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors mr-2 clickable">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <h2 id="subcategories-title" class="text-xl font-bold"></h2>
+                </div>
+                <button class="back-to-home text-xl font-bold text-blue-600 dark:text-blue-400 hover:underline clickable">Início</button>
+            </header>
+             <div id="members-welcome" class="hidden mb-4 text-center">
+                <p class="text-lg">Bem-vindo(a), <span id="member-name" class="font-bold"></span>!</p>
+            </div>
+            <div id="subcategories-container" class="grid grid-cols-2 gap-3">
+                <!-- Conteúdo gerado via JS -->
+            </div>
+        </div>
+
+        <!-- 2.5 TELA DE SETORES -->
+        <div id="sectors-screen" class="screen">
+            <header class="flex justify-between items-center py-4 mb-4">
+                <div class="flex items-center">
+                    <button class="back-to-subcategories p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors mr-2 clickable">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <h2 id="sectors-title" class="text-xl font-bold"></h2>
+                </div>
+                <button class="back-to-home text-xl font-bold text-blue-600 dark:text-blue-400 hover:underline clickable">Início</button>
+            </header>
+            <div id="sectors-container" class="grid grid-cols-2 gap-3">
+                <!-- Conteúdo gerado via JS -->
+            </div>
+        </div>
+
+        <!-- 3. TELA DE LISTAGEM (EX: SUPERMERCADOS) -->
+        <div id="listings-screen" class="screen">
+            <header class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <button id="back-from-listings" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors mr-2 clickable">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <h2 id="listings-title" class="text-xl font-bold"></h2>
+                </div>
+                <button class="back-to-home text-xl font-bold text-blue-600 dark:text-blue-400 hover:underline clickable">Início</button>
+            </header>
+            <!-- Barra de busca específica da listagem -->
+            <div class="relative my-4">
+                <input id="listings-search-input" type="text" placeholder="Buscar nesta seção..." class="w-full bg-gray-200 dark:bg-gray-800 border-none rounded-full py-2 px-5 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow">
+                <div class="absolute right-4 top-1/2 -translate-y-1/2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+            </div>
+            <div id="listings-container" class="space-y-4">
+                <!-- Conteúdo gerado via JS -->
+            </div>
+        </div>
+
+        <!-- 4. TELA DE DETALHES -->
+        <div id="details-screen" class="screen">
+             <header class="flex justify-between items-center py-4 mb-4">
+                <div class="flex items-center">
+                    <button class="back-from-details p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors mr-2 clickable">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <h2 id="details-title" class="text-xl font-bold"></h2>
+                </div>
+                <button class="back-to-home text-xl font-bold text-blue-600 dark:text-blue-400 hover:underline clickable">Início</button>
+            </header>
+            <div id="details-container">
+                 <img id="details-image" src="" alt="Foto do estabelecimento" class="w-full h-64 object-cover rounded-xl mb-4">
+                 <p id="details-description" class="text-gray-700 dark:text-gray-300 mb-4"></p>
+                 <div id="details-extra-fields" class="mb-6 flex flex-wrap gap-2 justify-center"></div>
+                 <a id="whatsapp-button" href="#" target="_blank" class="flex items-center justify-center w-full bg-green-500 text-white font-bold py-3 px-4 rounded-full hover:bg-green-600 transition-colors clickable">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.886-.001 2.267.655 4.398 1.908 6.161l.217.324-1.245 4.564 4.717-1.234.335.198z"/></svg>
+                     <span>Entrar em contato</span>
+                 </a>
+                 <!-- Seção de Delivery -->
+                 <div id="delivery-section" class="mt-8 hidden">
+                    <h3 class="text-2xl font-bold mb-4 text-center">Cardápio Delivery</h3>
+                    <div id="product-list" class="space-y-4"></div>
+                 </div>
+            </div>
+        </div>
+
+        <!-- 4.5 TELA DO CARRINHO -->
+        <div id="cart-screen" class="screen">
+            <header class="flex justify-between items-center py-4 mb-4">
+                <div class="flex items-center">
+                    <button class="back-from-cart p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors mr-2 clickable">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <h2 class="text-xl font-bold">Meu Pedido</h2>
+                </div>
+                 <button class="back-to-home text-xl font-bold text-blue-600 dark:text-blue-400 hover:underline clickable">Início</button>
+            </header>
+            <div id="cart-items-container" class="space-y-3 mb-6"></div>
+            <div id="cart-summary" class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg space-y-4">
+                <div class="flex justify-between font-bold text-lg">
+                    <span>Total</span>
+                    <span id="cart-total-price">R$ 0,00</span>
+                </div>
+                <div id="pix-info-container" class="text-center p-3 bg-gray-100 dark:bg-gray-700 rounded-md">
+                    <p class="font-semibold">Pagamento via PIX</p>
+                    <p id="pix-info-text" class="text-sm"></p>
+                    <p class="text-xs mt-2 text-gray-500 dark:text-gray-400">Envie o comprovante confirmando o pagamento para iniciarmos o preparo do seu pedido.</p>
+                </div>
+                <button id="send-order-button" class="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center clickable">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.886-.001 2.267.655 4.398 1.908 6.161l.217.324-1.245 4.564 4.717-1.234.335.198z"/></svg>
+                    Enviar Pedido via WhatsApp
+                </button>
+            </div>
+        </div>
+        
+        <!-- TELA DE SENHA PARA MEMBROS -->
+        <div id="pin-screen" class="screen">
+            <header class="flex justify-between items-center py-4 mb-4">
+                 <div class="flex items-center">
+                    <button class="back-to-home p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors mr-2 clickable">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <h2 class="text-xl font-bold">Área de Membros</h2>
+                </div>
+            </header>
+            <div class="bg-gray-200 dark:bg-gray-800 p-6 rounded-lg space-y-4">
+                <p class="text-center">Digite sua senha de 4 dígitos para acessar.</p>
+                <div id="pin-display" class="flex justify-center items-center space-x-2 h-12 text-3xl tracking-[1em]">
+                    <span></span><span></span><span></span><span></span>
+                </div>
+                <p id="pin-error-message" class="text-red-500 text-center text-sm h-4"></p>
+                <div id="keypad" class="grid grid-cols-3 gap-4">
+                    <!-- Teclado numérico será gerado aqui -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. TELA DE ADMIN -->
+        <div id="admin-screen" class="screen">
+            <header class="flex justify-between items-center py-4 mb-4">
+                <h2 class="text-xl font-bold">Painel do Administrador</h2>
+                <button id="admin-logout-button" class="font-semibold text-blue-600 dark:text-blue-400 hover:underline clickable">Sair</button>
+            </header>
+
+            <!-- PAINEL PRINCIPAL DO ADMIN -->
+            <div id="admin-overview-panel" class="space-y-6">
+                 <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Gerenciar Logo do App</h3>
+                    <div class="space-y-2">
+                        <div>
+                            <label for="logo-url-input" class="block text-sm font-medium mb-1">URL da Logo</label>
+                            <input type="text" id="logo-url-input" class="w-full bg-gray-100 dark:bg-gray-600 p-2 rounded" placeholder="https://exemplo.com/logo.png">
+                        </div>
+                        <div>
+                            <label for="logo-size-slider" class="block text-sm font-medium mb-1">Tamanho da Logo</label>
+                            <input type="range" id="logo-size-slider" min="6" max="14" step="1" class="w-full">
+                            <div class="text-xs text-center text-gray-500">Pequeno <-> Grande</div>
+                        </div>
+                        <button id="save-logo-btn" class="mt-2 w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 clickable">Salvar Logo</button>
+                    </div>
+                </div>
+                <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Gerenciar Conteúdo</h3>
+                    <div id="admin-categories-list" class="space-y-2"></div>
+                    <button id="admin-add-category-btn" class="mt-4 w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors clickable">+ Adicionar Nova Categoria</button>
+                </div>
+                 <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Gerenciar Membros</h3>
+                    <button id="manage-members-btn" class="w-full bg-yellow-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors clickable">
+                        Gerenciar Membros
+                    </button>
+                </div>
+                 <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Gerenciar Delivery</h3>
+                    <button id="manage-delivery-btn" class="w-full bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors clickable">
+                        Gerenciar Cardápios
+                    </button>
+                </div>
+                 <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Gerenciar Publicidade</h3>
+                    <button id="manage-ads-btn" class="w-full bg-purple-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-600 transition-colors clickable">
+                        Gerenciar Banners
+                    </button>
+                </div>
+                 <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Backup</h3>
+                    <button id="admin-backup-btn" class="mt-4 w-full bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors clickable">
+                        Fazer Backup (Exportar)
+                    </button>
+                </div>
+            </div>
+            
+            <!-- PAINEL DE EDIÇÃO DE CATEGORIA -->
+            <div id="admin-edit-container" class="hidden space-y-4"></div>
+
+            <!-- PAINEL DE GERENCIAMENTO DE MEMBROS -->
+            <div id="admin-members-panel" class="hidden space-y-4">
+                 <button id="back-to-admin-overview-from-members" class="font-semibold text-blue-600 dark:text-blue-400 hover:underline clickable">&larr; Voltar ao Painel</button>
+                <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Gerenciar Membros</h3>
+                    <div id="admin-members-list" class="space-y-3"></div>
+                    <button id="admin-add-member-btn" class="mt-4 w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors clickable">+ Adicionar Novo Membro</button>
+                </div>
+            </div>
+            
+            <!-- PAINEL DE GERENCIAMENTO DE DELIVERY -->
+            <div id="admin-delivery-panel" class="hidden space-y-4">
+                <button id="back-to-admin-overview-from-delivery" class="font-semibold text-blue-600 dark:text-blue-400 hover:underline clickable">&larr; Voltar ao Painel</button>
+                <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Selecione um Estabelecimento</h3>
+                    <div id="delivery-establishments-list" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- PAINEL DE EDIÇÃO DE PRODUTOS -->
+            <div id="admin-product-editor-panel" class="hidden space-y-4">
+                 <!-- O conteúdo será gerado por JS -->
+            </div>
+
+            <!-- PAINEL DE GERENCIAMENTO DE PUBLICIDADE -->
+             <div id="admin-ads-panel" class="hidden space-y-4">
+                <button id="back-to-admin-overview-from-ads" class="font-semibold text-blue-600 dark:text-blue-400 hover:underline clickable">&larr; Voltar ao Painel</button>
+                <div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Gerenciar Banners Publicitários</h3>
+                    <div id="admin-ads-list" class="space-y-3"></div>
+                    <button id="admin-add-ad-btn" class="mt-4 w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors clickable">+ Adicionar Novo Banner</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 6. TELA DE LOGIN ADMIN -->
+        <div id="login-screen" class="screen">
+            <header class="flex justify-between items-center py-4 mb-4">
+                <div class="flex items-center">
+                    <button class="back-to-home p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors mr-2 clickable">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <h2 class="text-xl font-bold">Acesso Restrito</h2>
+                </div>
+            </header>
+            <div class="bg-gray-200 dark:bg-gray-800 p-6 rounded-lg space-y-4">
+                <p class="text-center">Por favor, digite a senha para acessar o painel de administrador.</p>
+                <input type="password" id="admin-password-input" class="w-full bg-gray-100 dark:bg-gray-600 border-none rounded-lg p-3 text-center" placeholder="******">
+                <p id="login-error-message" class="text-red-500 text-center text-sm hidden">Senha incorreta.</p>
+                <button id="submit-login-button" class="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors clickable">Entrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTÃO FLUTUANTE DO CARRINHO -->
+    <button id="floating-cart-button" class="hidden fixed top-24 right-4 z-10 bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 transition-transform">
+        <div class="relative">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+            <span id="cart-item-count" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">0</span>
+        </div>
+    </button>
+
+
+    <!-- Rodapé Fixo -->
+    <footer class="fixed bottom-0 left-0 right-0 bg-gray-200 dark:bg-gray-800 p-2 text-center">
+        <p class="text-xs text-gray-600 dark:text-gray-400">2025 - 2025 © Nil All - Todos os direitos reservados.</p>
+        <p id="version-display" class="text-xs text-gray-500 dark:text-gray-400 mt-1"></p>
+    </footer>
+    
+    <input type="file" id="import-file-input" class="hidden" accept=".json">
+
+    <script>
+        // --- BANCO DE DADOS E PERSISTÊNCIA ---
+        let initialData = {
+            comercio: {
+                title: 'Comércio',
+                image: 'https://placehold.co/300x375/9b59b6/ffffff?text=Comércio',
+                subcategories: {
+                    supermercados: { title: 'Supermercados', listings: [{ id: 1, name: 'Supermercado Central', image: 'https://placehold.co/600x400/9b59b6/ffffff?text=Supermercado+1', description: 'O maior e mais completo da região.', phone: '5591989213312', extraFields: [{label: 'Oferta do Dia', value: 'Arroz 5kg por R$ 19,90'}] }] },
+                    farmacias: { title: 'Farmácias', listings: [{ id: 2, name: 'Farmácia Popular', image: 'https://placehold.co/600x400/9b59b6/ffffff?text=Farmácia+1', description: 'Medicamentos com os melhores preços.', phone: '5591989213312' }] },
+                    lojasDeRoupas: { title: 'Lojas de Roupas', listings: [{ id: 3, name: 'Estilo Modas', image: 'https://placehold.co/600x400/9b59b6/ffffff?text=Loja+de+Roupa', description: 'Moda feminina e masculina.', phone: '5591989213312' }] },
+                    padarias: { title: 'Padarias', listings: [{ id: 4, name: 'Pão Dourado', image: 'https://placehold.co/600x400/9b59b6/ffffff?text=Padaria', description: 'Pães frescos, bolos e salgados.', phone: '5591989213312' }] },
+                    acougues: { title: 'Açougues', listings: [{ id: 5, name: 'Corte Nobre', image: 'https://placehold.co/600x400/9b59b6/ffffff?text=Açougue', description: 'Carnes de primeira qualidade.', phone: '5591989213312' }] },
+                    materialDeConstrucao: { title: 'Material de Construção', listings: [{ id: 6, name: 'Constrular', image: 'https://placehold.co/600x400/9b59b6/ffffff?text=Construção', description: 'Tudo para sua obra.', phone: '5591989213312' }] }
+                }
+            },
+            classificados: {
+                title: 'Classificados',
+                image: 'https://placehold.co/300x375/3498db/ffffff?text=Classificados',
+                subcategories: {
+                    celulares: { title: 'Celulares', listings: [{ id: 7, name: 'iPhone 15 Usado', image: 'https://placehold.co/600x400/3498db/ffffff?text=Celular+1', description: 'Em ótimo estado, 128GB.', phone: '5591989213312', extraFields: [{label: 'Preço', value: 'R$ 3.500,00'}] }] },
+                    motos: { title: 'Motos', listings: [{ id: 8, name: 'Honda Biz 2022', image: 'https://placehold.co/600x400/3498db/ffffff?text=Moto+1', description: 'Pouco rodada, único dono.', phone: '5591989213312' }] },
+                    carros: { title: 'Carros', listings: [{ id: 9, name: 'Fiat Uno 2018', image: 'https://placehold.co/600x400/3498db/ffffff?text=Carro+1', description: 'Completo, com ar e direção.', phone: '5591989213312' }] }
+                }
+            },
+            profissionais: {
+                title: 'Profissionais',
+                image: 'https://placehold.co/300x375/2ecc71/ffffff?text=Profissionais',
+                subcategories: {
+                    pedreiros: { title: 'Pedreiros', listings: [{ id: 10, name: 'João da Construção', image: 'https://placehold.co/600x400/2ecc71/ffffff?text=Pedreiro+1', description: 'Serviços de alvenaria e reforma.', phone: '5591989213312' }] },
+                    carpinteiros: { title: 'Carpinteiros', listings: [{ id: 11, name: 'José das Madeiras', image: 'https://placehold.co/600x400/2ecc71/ffffff?text=Carpinteiro+1', description: 'Móveis planejados e telhados.', phone: '5591989213312' }] },
+                    eletricistas: { title: 'Eletricistas', listings: [{ id: 12, name: 'Carlos Luz', image: 'https://placehold.co/600x400/2ecc71/ffffff?text=Eletricista+1', description: 'Instalações elétricas residenciais.', phone: '5591989213312' }] }
+                }
+            },
+            delivery: {
+                title: 'Delivery',
+                image: 'https://placehold.co/300x375/e74c3c/ffffff?text=Delivery',
+                subcategories: {
+                    pizzarias: { title: 'Pizzarias', listings: [
+                        { 
+                            id: 13, 
+                            name: 'Pizza Nostra', 
+                            image: 'https://placehold.co/600x400/e74c3c/ffffff?text=Pizza+1', 
+                            description: 'A melhor pizza da cidade.', 
+                            phone: '5591989213312',
+                            isDelivery: true,
+                            pixInfo: 'Chave PIX: 91989213312 (Celular)',
+                            products: [
+                                {id: 101, name: 'Pizza Calabresa', description: 'Molho de tomate, calabresa fatiada, cebola e azeitonas.', price: 45.00, image: 'https://placehold.co/100/e74c3c/ffffff?text=Calabresa'},
+                                {id: 102, name: 'Pizza Marguerita', description: 'Molho, mussarela, tomate em rodelas e manjericão fresco.', price: 42.00, image: 'https://placehold.co/100/e74c3c/ffffff?text=Marguerita'},
+                                {id: 103, name: 'Pizza Portuguesa', description: 'Ovos, presunto, ervilha, cebola e mussarela.', price: 50.00, image: 'https://placehold.co/100/e74c3c/ffffff?text=Portuguesa'},
+                                {id: 104, name: 'Refrigerante 2L', description: 'Coca-Cola, Guaraná ou Fanta.', price: 10.00, image: 'https://placehold.co/100/e74c3c/ffffff?text=Refri'},
+                            ]
+                        }
+                    ] },
+                    acai: { title: 'Açaí', listings: [{ id: 14, name: 'Açaí Power', image: 'https://placehold.co/600x400/e74c3c/ffffff?text=Açaí+1', description: 'Açaí, cupuaçu e cremes.', phone: '5591989213312' }] }
+                }
+            },
+            eventos: {
+                title: 'Eventos',
+                image: 'https://placehold.co/300x375/f1c40f/ffffff?text=Eventos',
+                subcategories: {
+                    festivais: { title: 'Festivais', listings: [{ id: 15, name: 'Festival de Verão', image: 'https://placehold.co/600x400/f1c40f/ffffff?text=Festival+1', description: 'Shows com artistas nacionais.', phone: '5591989213312', extraFields: [{label: 'Data', value: '15/01/2026'}, {label: 'Cronômetro', value: '2026-01-15T20:00'}] }] },
+                    festas: { title: 'Festas', listings: [{ id: 16, name: 'Festa da Padroeira', image: 'https://placehold.co/600x400/f1c40f/ffffff?text=Festa+1', description: 'Evento tradicional com barracas.', phone: '5591989213312' }] },
+                    cavalgadas: { title: 'Cavalgadas', listings: [{ id: 17, name: 'Cavalgada dos Amigos', image: 'https://placehold.co/600x400/f1c40f/ffffff?text=Cavalgada+1', description: 'Passeio pelas trilhas da região.', phone: '5591989213312' }] }
+                }
+            },
+            publicos: {
+                title: 'Serviços Públicos',
+                image: 'https://placehold.co/300x375/e67e22/ffffff?text=Públicos',
+                subcategories: {
+                    prefeitura: { 
+                        title: 'Prefeitura',
+                        sectors: {
+                            gabinete: { title: 'Gabinete do Prefeito', listings: [{ id: 18, name: 'Paço Municipal', image: 'https://placehold.co/600x400/e67e22/ffffff?text=Prefeitura', description: 'Sede administrativa do município.', phone: '5591989213312' }] },
+                            administracao: { title: 'Sec. de Administração', listings: [{ id: 21, name: 'Centro Administrativo', image: 'https://placehold.co/600x400/e67e22/ffffff?text=Admin', description: 'Recursos humanos e licitações.', phone: '5591989213312' }] },
+                        } 
+                    },
+                    saude: { title: 'Saúde', listings: [{ id: 19, name: 'Posto de Saúde Central', image: 'https://placehold.co/600x400/e67e22/ffffff?text=Saúde', description: 'Atendimento médico e vacinação.', phone: '5591989213312' }] },
+                    obras: { title: 'Obras', listings: [{ id: 20, name: 'Secretaria de Obras', image: 'https://placehold.co/600x400/e67e22/ffffff?text=Obras', description: 'Informações sobre obras na cidade.', phone: '5591989213312' }] }
+                }
+            },
+            aluguel: {
+                title: 'Aluguel',
+                image: 'https://placehold.co/300x375/95a5a6/ffffff?text=Aluguel',
+                subcategories: {
+                    casas: { title: 'Casas', listings: [] },
+                    pontosComerciais: { title: 'Pontos Comerciais', listings: [] },
+                    espacoParaEventos: { title: 'Espaço para Eventos', listings: [] },
+                    carros: { title: 'Carros', listings: [] },
+                    motos: { title: 'Motos', listings: [] },
+                    onibusMicro: { title: 'Ônibus e Micro', listings: [] }
+                }
+            },
+            transportes: {
+                title: 'Transportes',
+                image: 'https://placehold.co/300x375/34495e/ffffff?text=Transportes',
+                subcategories: {
+                    mototaxi: { title: 'Mototáxi', listings: [] },
+                    taxi: { title: 'Táxi', listings: [] },
+                    encomendas: { title: 'Encomendas', listings: [] },
+                    viagensParticulares: { title: 'Viagens Particulares', listings: [] }
+                }
+            },
+            membros: {
+                title: 'Membros',
+                image: 'https://placehold.co/300x375/16a085/ffffff?text=Membros',
+                subcategories: {
+                    promocoes: { title: 'Promoções', listings: [] },
+                    descontosEspeciais: { title: 'Descontos Especiais', listings: [] },
+                    cupons: { title: 'Cupons', listings: [] },
+                    entradaFree: { title: 'Entrada Free', listings: [] }
+                }
+            },
+            ads: [
+                { id: 1, image: 'https://placehold.co/600x200/9b59b6/ffffff?text=Supermercado+Central', link: 'comercio/supermercados/null/1' }
+            ],
+            members: [
+                {id: 1, name: "Membro Teste", whatsapp: "5591989213312", pin: "1234", blocked: false, attempts: 0}
+            ],
+            version: '1.0',
+            appSettings: {
+                logoUrl: '',
+                logoSize: 8
+            }
+        };
+        
+        let appData = {};
+
+        function saveData() {
+            try {
+                localStorage.setItem('superAppMDRData', JSON.stringify(appData));
+            } catch (error) {
+                console.error("Erro ao salvar os dados:", error);
+            }
+        }
+
+        function loadData() {
+            try {
+                const savedData = localStorage.getItem('superAppMDRData');
+                if (savedData) {
+                    Object.assign(appData, JSON.parse(savedData));
+                    console.log("Dados locais carregados.");
+                } else {
+                    Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
+                    console.log("Dados iniciais carregados.");
+                }
+                
+                if (!appData.version) appData.version = '1.0';
+                if (!appData.appSettings) appData.appSettings = { ...initialData.appSettings };
+                if (!appData.members) appData.members = [];
+
+
+            } catch (error) {
+                console.error("Erro crítico ao carregar dados, usando dados iniciais.", error);
+                Object.assign(appData, JSON.parse(JSON.stringify(initialData)));
+            } finally {
+                updateVersionDisplay();
+                renderHeader();
+                renderHomeScreen();
+            }
+        }
+        
+        function updateVersion() {
+            let [major, minor] = appData.version.split('.').map(Number);
+            minor++;
+            if (minor >= 10) {
+                minor = 0;
+                major++;
+            }
+            appData.version = `${major}.${minor}`;
             updateVersionDisplay();
-            renderHeader();
-            renderHomeScreen();
-
-            if (loadingIndicator) loadingIndicator.classList.add('hidden');
+            saveData();
         }
-    }
 
-    // ✅ Pequeno aviso visual (toast)
-    function showToast(message) {
-        const toast = document.createElement("div");
-        toast.textContent = message;
-        toast.className =
-            "fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white text-sm font-medium py-2 px-4 rounded-full shadow-lg animate-fadeIn";
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 4000);
-    }
-
-    function updateVersion() {
-        let [major, minor] = appData.version.split('.').map(Number);
-        minor++;
-        if (minor >= 10) {
-            minor = 0;
-            major++;
+        function updateVersionDisplay() {
+            document.getElementById('version-display').innerText = `Versão ${appData.version}`;
         }
-        appData.version = `${major}.${minor}`;
-        updateVersionDisplay();
-        saveData();
-    }
 
-    function updateVersionDisplay() {
-        document.getElementById('version-display').innerText = `Versão ${appData.version}`;
-    }
-</script>
+
+        // --- LÓGICA DO CARRINHO ---
+        let cart = {}; 
+        let currentDeliveryEstablishment = null;
+
+        function formatCurrency(value) {
+            if (typeof value !== 'number') return 'R$ 0,00';
+            return value.toLocaleString('pt-br', { style: 'currency', currency: 'BRL' });
+        }
+
+        function addToCart(product) {
+            if (cart[product.id]) {
+                cart[product.id].quantity++;
+            } else {
+                cart[product.id] = { ...product, quantity: 1 };
+            }
+            updateCartDisplay();
+
+            const floatingCartButton = document.getElementById('floating-cart-button');
+            floatingCartButton.classList.remove('shake');
+            void floatingCartButton.offsetWidth; 
+            floatingCartButton.classList.add('shake');
+            setTimeout(() => {
+                floatingCartButton.classList.remove('shake');
+            }, 500);
+        }
+
+        function updateCartQuantity(productId, newQuantity) {
+             if (cart[productId]) {
+                if (newQuantity > 0) {
+                    cart[productId].quantity = newQuantity;
+                } else {
+                    delete cart[productId];
+                }
+                updateCartDisplay();
+                if (document.getElementById('cart-screen').classList.contains('active')) {
+                   showCartScreen(); 
+                }
+            }
+        }
+
+        function updateCartDisplay() {
+            const floatingCartButton = document.getElementById('floating-cart-button');
+            const cartItemCount = document.getElementById('cart-item-count');
+            
+            const totalItems = Object.values(cart).reduce((sum, item) => sum + item.quantity, 0);
+            
+            if (totalItems > 0) {
+                cartItemCount.innerText = totalItems;
+                floatingCartButton.classList.remove('hidden');
+            } else {
+                floatingCartButton.classList.add('hidden');
+                if(document.getElementById('cart-screen').classList.contains('active') && currentDeliveryEstablishment) {
+                    showDetailsPage(navigationState.category, navigationState.subcategory, navigationState.sector, currentDeliveryEstablishment.id, true);
+                }
+            }
+        }
+
+        function clearCart() {
+            cart = {};
+            currentDeliveryEstablishment = null;
+            updateCartDisplay();
+        }
+
+        function showCartScreen() {
+            const container = document.getElementById('cart-items-container');
+            const totalPriceEl = document.getElementById('cart-total-price');
+            container.innerHTML = '';
+            let totalPrice = 0;
+
+            if (Object.keys(cart).length === 0) {
+                container.innerHTML = `<p class="text-center text-gray-500">Seu carrinho está vazio.</p>`;
+                totalPriceEl.innerText = formatCurrency(0);
+                document.getElementById('send-order-button').disabled = true;
+                return;
+            }
+            
+            document.getElementById('send-order-button').disabled = false;
+
+            Object.values(cart).forEach(item => {
+                const itemTotal = item.price * item.quantity;
+                totalPrice += itemTotal;
+                container.innerHTML += `
+                <div class="cart-item-enter flex items-center bg-gray-200 dark:bg-gray-800 p-2 rounded-lg justify-between">
+                    <img src="${item.image}" class="w-14 h-14 rounded-md object-cover mr-3">
+                    <div class="flex-grow">
+                        <p class="font-semibold">${item.name}</p>
+                        <p class="text-sm text-blue-500">${formatCurrency(item.price)}</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button class="cart-quantity-change h-7 w-7 bg-gray-300 dark:bg-gray-700 rounded-full font-bold clickable" data-product-id="${item.id}" data-change="-1">-</button>
+                        <span class="font-bold w-6 text-center">${item.quantity}</span>
+                        <button class="cart-quantity-change h-7 w-7 bg-gray-300 dark:bg-gray-700 rounded-full font-bold clickable" data-product-id="${item.id}" data-change="1">+</button>
+                    </div>
+                </div>
+                `;
+            });
+
+            totalPriceEl.innerText = formatCurrency(totalPrice);
+            document.getElementById('pix-info-text').innerText = currentDeliveryEstablishment.pixInfo || 'PIX não informado.';
+            showScreen('cart-screen');
+        }
+
+        // --- LÓGICA DE NAVEGAÇÃO PÚBLICA ---
+        const allScreens = document.querySelectorAll('.screen');
+        let navigationState = { category: null, subcategory: null, sector: null };
+        let activeCountdownInterval = null;
+        let adBannerInterval = null;
+        
+        function renderHeader() {
+            const logoContainer = document.getElementById('logo-container');
+            const settings = appData.appSettings;
+            if (settings && settings.logoUrl) {
+                const sizeClass = `h-${settings.logoSize || 8}`;
+                logoContainer.innerHTML = `<img src="${settings.logoUrl}" alt="Logo do App" class="${sizeClass} max-w-[10rem] object-contain">`;
+            } else {
+                logoContainer.innerHTML = `<h1 class="text-2xl font-bold text-blue-600 dark:text-blue-400">Super App MDR</h1>`;
+            }
+        }
+
+        function renderHomeScreen() {
+            const container = document.getElementById('category-container');
+            if (!container) return;
+            container.innerHTML = ''; 
+            Object.keys(appData).forEach(key => {
+                if (key === 'ads' || key === 'version' || key === 'appSettings' || key === 'members') return;
+                const category = appData[key];
+                let padlockIcon = '';
+                if (key === 'membros') {
+                    padlockIcon = `<div class="absolute inset-0 flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>`;
+                }
+
+                container.innerHTML += `<div class="category-card clickable" data-category="${key}"><div class="relative aspect-[8/5] rounded-xl overflow-hidden shadow-lg group cursor-pointer">${padlockIcon}<img src="${category.image}" alt="${category.title}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"><div class="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div><div class="absolute inset-x-0 bottom-0 p-2"><h3 class="text-white text-center font-semibold text-sm">${category.title}</h3></div></div></div>`;
+            });
+            renderAdBanner();
+        }
+
+        function renderAdBanner() {
+            const container = document.getElementById('ad-banner-container');
+            if (adBannerInterval) clearInterval(adBannerInterval);
+
+            if (!appData.ads || appData.ads.length === 0) {
+                container.innerHTML = `<img src="https://placehold.co/600x200/1abc9c/ffffff?text=Publicidade" alt="Publicidade" class="w-full h-full object-cover">`;
+                return;
+            }
+            
+            let currentAdIndex = 0;
+            const showAd = () => {
+                const ad = appData.ads[currentAdIndex];
+                const newImg = document.createElement('img');
+                newImg.src = ad.image;
+                newImg.alt = "Publicidade";
+                newImg.className = "w-full h-full object-cover absolute top-0 left-0 opacity-0";
+                
+                const link = document.createElement('a');
+                link.href = "#";
+                link.dataset.internalLink = ad.link;
+                link.classList.add("internal-ad-link", "cursor-pointer", "clickable");
+                link.appendChild(newImg);
+                
+                const currentImg = container.querySelector('img');
+                if (currentImg) currentImg.style.opacity = 0;
+
+                setTimeout(() => {
+                    container.innerHTML = '';
+                    container.appendChild(link);
+                    setTimeout(() => newImg.style.opacity = 1, 50);
+                }, 500);
+
+                currentAdIndex = (currentAdIndex + 1) % appData.ads.length;
+            };
+
+            container.style.position = 'relative';
+            showAd();
+            if (appData.ads.length > 1) {
+                adBannerInterval = setInterval(showAd, 5000);
+            }
+        }
+
+        function showScreen(screenId) {
+            if (activeCountdownInterval) { clearInterval(activeCountdownInterval); activeCountdownInterval = null; }
+            if (!['details-screen', 'cart-screen', 'pin-screen'].includes(screenId)) {
+                clearCart();
+            }
+            allScreens.forEach(screen => screen.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            window.scrollTo(0, 0);
+        }
+
+        function showSubcategoriesPage(categoryKey, memberName = null) {
+            navigationState = { category: categoryKey, subcategory: null, sector: null };
+            const category = appData[categoryKey];
+            document.getElementById('subcategories-title').innerText = category.title;
+            const container = document.getElementById('subcategories-container');
+            container.innerHTML = '';
+            
+            const welcomeEl = document.getElementById('members-welcome');
+            if (memberName) {
+                document.getElementById('member-name').innerText = memberName;
+                welcomeEl.classList.remove('hidden');
+            } else {
+                welcomeEl.classList.add('hidden');
+            }
+            
+            const sortedSubKeys = Object.keys(category.subcategories).sort((a, b) => {
+                const titleA = category.subcategories[a].title.toLowerCase();
+                const titleB = category.subcategories[b].title.toLowerCase();
+                return titleA.localeCompare(titleB, 'pt-BR');
+            });
+
+            sortedSubKeys.forEach(subKey => {
+                const subcategory = category.subcategories[subKey];
+                container.innerHTML += `<button class="subcategory-item w-full text-center bg-gray-200 dark:bg-gray-800 py-3 px-2 rounded-lg shadow hover:bg-blue-500 hover:text-white transition-colors clickable" data-subcategory="${subKey}">${subcategory.title}</button>`;
+            });
+            showScreen('subcategories-screen');
+        }
+
+        function showSectorsPage(categoryKey, subcategoryKey) {
+            navigationState.category = categoryKey;
+            navigationState.subcategory = subcategoryKey;
+            navigationState.sector = null;
+            const subcategory = appData[categoryKey].subcategories[subcategoryKey];
+            document.getElementById('sectors-title').innerText = subcategory.title;
+            const container = document.getElementById('sectors-container');
+            container.innerHTML = '';
+            
+            const sortedSectorKeys = Object.keys(subcategory.sectors).sort((a, b) => {
+                const titleA = subcategory.sectors[a].title.toLowerCase();
+                const titleB = subcategory.sectors[b].title.toLowerCase();
+                return titleA.localeCompare(titleB, 'pt-BR');
+            });
+
+            sortedSectorKeys.forEach(sectorKey => {
+                const sector = subcategory.sectors[sectorKey];
+                 container.innerHTML += `<button class="sector-item w-full text-center bg-gray-200 dark:bg-gray-800 py-3 px-2 rounded-lg shadow hover:bg-blue-500 hover:text-white transition-colors clickable" data-sector="${sectorKey}">${sector.title}</button>`;
+            });
+            showScreen('sectors-screen');
+        }
+
+        function showListingsPage(categoryKey, subcategoryKey, sectorKey = null) {
+            navigationState = { category: categoryKey, subcategory: subcategoryKey, sector: sectorKey };
+            let source = sectorKey ? appData[categoryKey].subcategories[subcategoryKey].sectors[sectorKey] : appData[categoryKey].subcategories[subcategoryKey];
+            document.getElementById('listings-title').innerText = source.title;
+            const searchInput = document.getElementById('listings-search-input');
+            searchInput.value = '';
+
+            function renderFilteredListings(query = '') {
+                const container = document.getElementById('listings-container');
+                container.innerHTML = '';
+                
+                let allListings = [...(source.listings || [])];
+                allListings.sort((a,b) => a.name.localeCompare(b.name, 'pt-BR'));
+                
+                const filteredListings = allListings.filter(item => item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query));
+
+                if (filteredListings.length > 0) {
+                    filteredListings.forEach(item => { container.innerHTML += `<div class="listing-item flex items-center bg-gray-200 dark:bg-gray-800 p-3 rounded-lg shadow cursor-pointer hover:scale-105 transition-transform clickable" data-id="${item.id}"><img src="${item.image}" alt="${item.name}" class="w-16 h-16 rounded-md object-cover mr-4"><div><h4 class="font-bold">${item.name}</h4><p class="text-sm text-gray-600 dark:text-gray-400">${item.description.substring(0, 30)}...</p></div></div>`; });
+                } else { container.innerHTML = `<p class="text-center text-gray-500">Nenhuma publicação encontrada.</p>`; }
+            }
+            renderFilteredListings();
+            searchInput.oninput = (e) => renderFilteredListings(e.target.value.toLowerCase().trim());
+            showScreen('listings-screen');
+        }
+
+        function showDetailsPage(categoryKey, subcategoryKey, sectorKey, itemId, preserveCart = false) {
+            if (!preserveCart || (currentDeliveryEstablishment && currentDeliveryEstablishment.id != itemId)) {
+                clearCart();
+            }
+            
+            navigationState = { category: categoryKey, subcategory: subcategoryKey, sector: sectorKey, item: itemId };
+            let source = sectorKey ? appData[categoryKey].subcategories[subcategoryKey].sectors[sectorKey] : appData[categoryKey].subcategories[subcategoryKey];
+            const item = source.listings.find(i => i.id == itemId);
+            if (!item) return;
+            currentDeliveryEstablishment = item;
+
+            document.getElementById('details-title').innerText = item.name;
+            document.getElementById('details-image').src = item.image;
+            document.getElementById('details-image').alt = item.name;
+            document.getElementById('details-description').innerText = item.description;
+
+            const extraFieldsContainer = document.getElementById('details-extra-fields');
+            extraFieldsContainer.innerHTML = '';
+            if (item.extraFields && item.extraFields.length > 0) {
+                item.extraFields.forEach(field => {
+                    if (field.label.toLowerCase() === 'cronômetro') {
+                        const countdownId = `countdown-${item.id}`;
+                        extraFieldsContainer.innerHTML += `<div class="w-full bg-gray-200 dark:bg-gray-800 px-3 py-2 rounded-lg"><strong class="block text-center font-semibold text-blue-600 dark:text-blue-400 mb-1">${field.label}</strong><div id="${countdownId}" class="text-2xl font-bold text-center p-2 bg-blue-100 dark:bg-blue-900/50 rounded-md"></div></div>`;
+                        const targetDate = new Date(field.value).getTime();
+                        if (activeCountdownInterval) clearInterval(activeCountdownInterval);
+                        activeCountdownInterval = setInterval(() => {
+                            const now = new Date().getTime();
+                            const distance = targetDate - now;
+                            const countdownEl = document.getElementById(countdownId);
+                            if(!countdownEl) { clearInterval(activeCountdownInterval); return; }
+                            if (distance < 0) {
+                                clearInterval(activeCountdownInterval);
+                                countdownEl.innerHTML = "EVENTO ENCERRADO";
+                                return;
+                            }
+                            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                            countdownEl.innerHTML = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+                        }, 1000);
+                    } else {
+                         extraFieldsContainer.innerHTML += `<div class="flex-grow bg-gray-200 dark:bg-gray-800 px-3 py-1 rounded-lg text-center min-w-[120px]"><strong class="block text-sm text-gray-500 dark:text-gray-400 font-medium">${field.label}</strong><span class="font-bold text-lg">${field.value}</span></div>`;
+                    }
+                });
+            }
+
+
+            const deliverySection = document.getElementById('delivery-section');
+            const productList = document.getElementById('product-list');
+            if (item.isDelivery && item.products?.length > 0) {
+                productList.innerHTML = '';
+                item.products.forEach(product => {
+                    productList.innerHTML += `
+                    <div class="flex items-center bg-gray-200 dark:bg-gray-800 p-3 rounded-lg shadow">
+                        <img src="${product.image}" alt="${product.name}" class="w-20 h-20 rounded-md object-cover mr-4">
+                        <div class="flex-grow">
+                            <h4 class="font-bold">${product.name}</h4>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">${product.description}</p>
+                            <p class="font-bold text-lg text-blue-600 dark:text-blue-400">${formatCurrency(product.price)}</p>
+                        </div>
+                        <button class="add-to-cart-btn bg-blue-500 text-white rounded-full p-2 hover:bg-blue-600 clickable" data-product-id="${product.id}">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                        </button>
+                    </div>`;
+                });
+                deliverySection.classList.remove('hidden');
+            } else {
+                deliverySection.classList.add('hidden');
+            }
+            
+            updateCartDisplay();
+
+            const whatsappLink = `https://api.whatsapp.com/send?phone=${item.phone}&text=Olá,%20vi%20o%20anúncio%20de%20'${item.name}'%20no%20Super%20App%20MDR.`;
+            document.getElementById('whatsapp-button').href = whatsappLink;
+            showScreen('details-screen');
+        }
+        
+        // --- LÓGICA DE ADMIN ---
+        const adminEditContainer = document.getElementById('admin-edit-container');
+        const adminOverviewPanel = document.getElementById('admin-overview-panel');
+        const adminDeliveryPanel = document.getElementById('admin-delivery-panel');
+        const adminProductEditorPanel = document.getElementById('admin-product-editor-panel');
+        const adminAdsPanel = document.getElementById('admin-ads-panel');
+        const adminMembersPanel = document.getElementById('admin-members-panel');
+        let adminState = { editingCategory: null, editingSubcategory: null, editingSector: null, editingEstablishmentId: null };
+        
+        function generateKey(title) { return title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9 ]/g, "").trim().toLowerCase().replace(/\s+/g, '-'); }
+
+        function showAdminPanel() {
+            adminState = { editingCategory: null, editingSubcategory: null, editingSector: null, editingEstablishmentId: null };
+            showScreen('admin-screen');
+            adminOverviewPanel.classList.remove('hidden');
+            adminEditContainer.classList.add('hidden');
+            adminDeliveryPanel.classList.add('hidden');
+            adminProductEditorPanel.classList.add('hidden');
+            adminAdsPanel.classList.add('hidden');
+            adminMembersPanel.classList.add('hidden');
+            adminEditContainer.innerHTML = '';
+
+            const logoUrlInput = document.getElementById('logo-url-input');
+            const logoSizeSlider = document.getElementById('logo-size-slider');
+            
+            if(logoUrlInput && appData.appSettings) {
+                logoUrlInput.value = appData.appSettings.logoUrl || '';
+                logoSizeSlider.value = appData.appSettings.logoSize || 8;
+            }
+
+            renderAdminCategories();
+        }
+
+        function renderAdminCategories() {
+            const listContainer = document.getElementById('admin-categories-list');
+            listContainer.innerHTML = '';
+            Object.keys(appData).forEach(key => {
+                 if (key === 'ads' || key === 'version' || key === 'appSettings' || key === 'members') return;
+                const category = appData[key];
+                listContainer.innerHTML += `<div class="flex items-center justify-between bg-white dark:bg-gray-700 p-2 rounded-lg"><span class="font-semibold">${category.title}</span><div class="space-x-2"><button class="admin-edit-category-btn text-blue-500 hover:underline clickable" data-key="${key}">Editar</button><button class="admin-delete-category-btn text-red-500 hover:underline clickable" data-key="${key}">Excluir</button></div></div>`;
+            });
+        }
+        
+        function showCategoryDeepEdit(categoryKey) {
+            adminState.editingCategory = categoryKey;
+            adminOverviewPanel.classList.add('hidden');
+            adminDeliveryPanel.classList.add('hidden');
+            adminAdsPanel.classList.add('hidden');
+            adminMembersPanel.classList.add('hidden');
+
+            const category = appData[categoryKey];
+            let subcategoriesHTML = '';
+            if (category.subcategories) {
+                Object.keys(category.subcategories).forEach(subKey => {
+                    const subcategory = category.subcategories[subKey];
+                    let contentHTML = '';
+                    if (subcategory.sectors) {
+                        contentHTML += '<div class="pl-4 mt-2 space-y-2 border-l-2 border-gray-300 dark:border-gray-600">';
+                        Object.keys(subcategory.sectors).forEach(sectorKey => {
+                            const sector = subcategory.sectors[sectorKey];
+                            let listingsHTML = '<div class="pl-4 mt-2 space-y-2 border-l-2 border-gray-400 dark:border-gray-500">';
+                            (sector.listings || []).forEach(listing => { listingsHTML += `<div class="flex items-center justify-between bg-gray-50 dark:bg-gray-600 p-2 rounded"><span class="text-sm">${listing.name}</span><div class="space-x-2"><button class="admin-edit-listing-btn text-xs text-blue-500 clickable" data-key="${listing.id}" data-subkey="${subKey}" data-sectorkey="${sectorKey}">Editar</button><button class="admin-delete-listing-btn text-xs text-red-500 clickable" data-key="${listing.id}" data-subkey="${subKey}" data-sectorkey="${sectorKey}">Excluir</button></div></div>`; });
+                            listingsHTML += `</div><button class="admin-add-listing-btn mt-1 w-full text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 py-1 rounded clickable" data-subkey="${subKey}" data-sectorkey="${sectorKey}">+ Publicação</button>`;
+                            contentHTML += `<div class="bg-gray-100 dark:bg-gray-600 p-2 rounded-md"><div class="flex items-center justify-between"><span class="font-semibold text-sm">${sector.title}</span><div class="space-x-2"><button class="admin-edit-sector-btn text-xs text-blue-500 clickable" data-key="${sectorKey}" data-subkey="${subKey}">Editar</button><button class="admin-delete-sector-btn text-xs text-red-500 clickable" data-key="${sectorKey}" data-subkey="${subKey}">Excluir</button></div></div>${listingsHTML}</div>`;
+                        });
+                        contentHTML += `</div><button class="admin-add-sector-btn mt-2 w-full text-sm bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-semibold py-1 px-2 rounded clickable" data-subkey="${subKey}">+ Setor</button>`;
+                    } else {
+                        contentHTML += '<div class="pl-4 mt-2 space-y-2 border-l-2 border-gray-300 dark:border-gray-600">';
+                        (subcategory.listings || []).forEach(listing => { contentHTML += `<div class="flex items-center justify-between bg-gray-50 dark:bg-gray-600 p-2 rounded"><span class="text-sm">${listing.name}</span><div class="space-x-2"><button class="admin-edit-listing-btn text-xs text-blue-500 clickable" data-key="${listing.id}" data-subkey="${subKey}">Editar</button><button class="admin-delete-listing-btn text-xs text-red-500 clickable" data-key="${listing.id}" data-subkey="${subKey}">Excluir</button></div></div>`; });
+                        contentHTML += '</div>';
+                        contentHTML += `<button class="admin-add-listing-btn mt-2 w-full text-sm bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 font-semibold py-1 px-2 rounded clickable" data-subkey="${subKey}">+ Publicação</button>`;
+                        contentHTML += `<button class="admin-add-sector-btn mt-2 w-full text-sm bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-semibold py-1 px-2 rounded clickable" data-subkey="${subKey}">+ Setor</button>`;
+                    }
+                    subcategoriesHTML += `<div class="bg-white dark:bg-gray-700 p-3 rounded-lg"><div class="flex items-center justify-between"><span class="font-semibold">${subcategory.title}</span><div class="space-x-2"><button class="admin-edit-subcategory-btn text-blue-500 clickable" data-key="${subKey}">Editar</button><button class="admin-delete-subcategory-btn text-red-500 clickable" data-key="${subKey}">Excluir</button></div></div>${contentHTML}</div>`;
+                });
+            }
+            const fullEditHTML = `<div class="space-y-6"><button id="back-to-admin-overview-from-edit" class="font-semibold text-blue-600 dark:text-blue-400 hover:underline clickable">&larr; Voltar</button><div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg space-y-3"><h4 class="text-lg font-semibold">Editando Categoria</h4><input type="hidden" id="category-key-input" value="${categoryKey}"><div><label>Título</label><input type="text" id="category-title-input" class="w-full bg-gray-100 dark:bg-gray-600 p-2 rounded" value="${category.title}"></div><div><label>URL da Imagem</label><input type="text" id="category-image-input" class="w-full bg-gray-100 dark:bg-gray-600 p-2 rounded" value="${category.image}"></div><div class="flex justify-end"><button id="save-category-deep-edit" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg clickable">Salvar Categoria</button></div></div><div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg space-y-3"><h4 class="text-lg font-semibold">Subcategorias de "${category.title}"</h4><div id="deep-edit-subcategories-list" class="space-y-3">${subcategoriesHTML}</div><button id="add-subcategory-deep-edit" class="mt-3 w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg clickable">+ Subcategoria</button></div></div>`;
+            adminEditContainer.innerHTML = fullEditHTML;
+            adminEditContainer.classList.remove('hidden');
+        }
+
+        function showModalForm(options) {
+            const { type, title, fields, onSave, itemKey, subKey, sectorKey } = options;
+            let fieldsHTML = fields.map(f => {
+                if (f.type === 'select') {
+                    return `<div><label for="form-select-${f.id}" class="block text-sm font-medium mb-1">${f.label}</label><select id="form-select-${f.id}" class="w-full bg-gray-100 dark:bg-gray-600 p-2 rounded">${f.options}</select></div>`;
+                }
+                return `<div><label for="form-input-${f.id}" class="block text-sm font-medium mb-1">${f.label}</label><input type="${f.type||'text'}" id="form-input-${f.id}" class="w-full bg-gray-100 dark:bg-gray-600 p-2 rounded" value="${f.value||''}"></div>`;
+            }).join('');
+            
+            let extraFieldsHTML = '', deliveryHTML = '';
+
+            if (type === 'listing') {
+                const l = findEstablishmentById(itemKey) || {};
+                const extraFieldsData = l.extraFields;
+                const deliveryData = { isDelivery: l.isDelivery, pixInfo: l.pixInfo };
+
+                extraFieldsHTML = '<h5 class="text-md font-semibold pt-2">Informações Adicionais</h5><div id="extra-fields-container" class="space-y-2">';
+                (extraFieldsData||[]).forEach(f => { extraFieldsHTML += `<div class="extra-field-row flex items-center space-x-2"><input type="text" placeholder="Rótulo" class="extra-field-label w-1/3 bg-gray-100 dark:bg-gray-600 p-2 rounded" value="${f.label}"><input type="text" placeholder="Valor" class="extra-field-value w-2/3 bg-gray-100 dark:bg-gray-600 p-2 rounded" value="${f.value}"><button type="button" class="remove-extra-field-btn text-red-500 p-1"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg></button></div>`; });
+                extraFieldsHTML += '</div><button type="button" id="add-extra-field-btn" class="mt-2 text-sm text-blue-600 dark:text-blue-400 clickable">+ Adicionar Campo</button>';
+                
+                deliveryHTML = `<div class="mt-4 pt-4 border-t border-gray-300 dark:border-gray-600"><h5 class="text-md font-semibold">Sistema de Delivery</h5><div class="flex items-center my-2"><input type="checkbox" id="delivery-enabled-checkbox" class="h-4 w-4 rounded" ${deliveryData?.isDelivery ? 'checked' : ''}><label for="delivery-enabled-checkbox" class="ml-2">Habilitar Delivery</label></div><div id="delivery-fields-container" class="${deliveryData?.isDelivery ? '' : 'hidden'} space-y-2"><div><label for="pix-info-input">Informação do PIX</label><input type="text" id="pix-info-input" class="w-full bg-gray-100 dark:bg-gray-600 p-2 rounded" value="${deliveryData?.pixInfo || ''}"></div><p class="text-xs text-gray-500">O cardápio é gerenciado na seção "Gerenciar Cardápios".</p></div></div>`;
+            }
+
+            const formHTML = `<div id="modal-container" class="fixed inset-0 z-20 flex items-center justify-center p-4"><div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg space-y-3 w-full max-w-md shadow-lg max-h-[90vh] overflow-y-auto"><h4 class="text-lg font-semibold">${title}</h4>${fieldsHTML}${extraFieldsHTML}${deliveryHTML}<div class="flex justify-end space-x-3 pt-4"><button id="cancel-modal-form" type="button" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg clickable">Cancelar</button><button id="save-modal-form" type="button" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg clickable">Salvar</button></div></div></div><div id="form-overlay" class="fixed inset-0 bg-black/50 z-10"></div>`;
+            document.body.insertAdjacentHTML('beforeend', formHTML);
+
+            document.getElementById('save-modal-form').onclick = () => onSave({ itemKey, subKey, sectorKey });
+            document.getElementById('cancel-modal-form').onclick = closeModalForm;
+            document.getElementById('form-overlay').onclick = closeModalForm;
+
+            if (type === 'listing') {
+                const deliveryFields = document.getElementById('delivery-fields-container');
+                document.getElementById('delivery-enabled-checkbox').onchange = (e) => deliveryFields.classList.toggle('hidden', !e.target.checked);
+                document.getElementById('add-extra-field-btn').onclick = () => document.getElementById('extra-fields-container').insertAdjacentHTML('beforeend', `<div class="extra-field-row flex items-center space-x-2"><input type="text" placeholder="Rótulo" class="extra-field-label w-1/3 bg-gray-100 dark:bg-gray-600 p-2 rounded"><input type="text" placeholder="Valor" class="extra-field-value w-2/3 bg-gray-100 dark:bg-gray-600 p-2 rounded"><button type="button" class="remove-extra-field-btn text-red-500 p-1"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg></button></div>`);
+                 document.getElementById('modal-container').addEventListener('click', (e) => {
+                    if (e.target.closest('.remove-extra-field-btn')) e.target.closest('.extra-field-row').remove();
+                });
+            }
+        }
+        
+        function closeModalForm() { document.getElementById('modal-container')?.remove(); document.getElementById('form-overlay')?.remove(); }
+        
+        function showDeleteConfirmation(type, key, subKey, sectorKey = null, productId = null) {
+            let title = '';
+            let message = 'Tem certeza que deseja excluir';
+            const categoryKey = adminState.editingCategory;
+            const category = type !== 'category' && categoryKey ? appData[categoryKey] : null;
+
+            if (type === 'category') { title = appData[key]?.title; } 
+            else if (type === 'subcategory') { title = category?.subcategories?.[key]?.title; } 
+            else if (type === 'sector') { title = category?.subcategories?.[subKey]?.sectors?.[key]?.title; } 
+            else if (type === 'listing') {
+                const source = sectorKey ? category?.subcategories?.[subKey]?.sectors?.[sectorKey] : category?.subcategories?.[subKey];
+                title = source?.listings?.find(l => l.id == key)?.name;
+            } else if (type === 'product') {
+                const establishment = findEstablishmentById(adminState.editingEstablishmentId);
+                title = establishment?.products.find(p => p.id == productId)?.name;
+            } else if (type === 'ad') {
+                title = `Banner ID: ${key}`;
+            } else if (type === 'member') {
+                title = appData.members.find(m => m.id == key)?.name;
+            }
+
+            if (!title) { console.error("Could not find item to delete:", {type, key, subKey}); return; }
+            
+            message += ` <strong>"${title}"</strong>? Esta ação não pode ser desfeita.`;
+
+            showConfirmationModal('Confirmar Exclusão', message, () => {
+                if (type === 'category') { delete appData[key]; renderHomeScreen(); showAdminPanel(); } 
+                else if (type === 'subcategory') { delete appData[categoryKey].subcategories[key]; } 
+                else if (type === 'sector') { delete appData[categoryKey].subcategories[subKey].sectors[key]; } 
+                else if (type === 'listing') {
+                    const source = sectorKey ? appData[categoryKey].subcategories[subKey].sectors[sectorKey] : appData[categoryKey].subcategories[subKey];
+                    const index = source.listings.findIndex(l => l.id == key);
+                    if (index > -1) source.listings.splice(index, 1);
+                } else if (type === 'product') {
+                    const establishment = findEstablishmentById(adminState.editingEstablishmentId);
+                    const prodIndex = establishment.products.findIndex(p => p.id == productId);
+                    if (prodIndex > -1) establishment.products.splice(prodIndex, 1);
+                    showProductEditor(adminState.editingEstablishmentId);
+                } else if (type === 'ad') {
+                    const adIndex = appData.ads.findIndex(ad => ad.id == key);
+                    if (adIndex > -1) appData.ads.splice(adIndex, 1);
+                    renderAdBanner();
+                    showAdsAdminPanel();
+                } else if (type === 'member') {
+                    const memberIndex = appData.members.findIndex(m => m.id == key);
+                    if (memberIndex > -1) appData.members.splice(memberIndex, 1);
+                    showMembersAdminPanel();
+                }
+                
+                if (type !== 'category' && type !== 'product' && type !== 'ad' && type !== 'member') { showCategoryDeepEdit(categoryKey); }
+                updateVersion();
+            });
+        }
+
+        // --- EVENT LISTENERS ---
+        document.body.addEventListener('click', (event) => {
+            const target = event.target;
+            
+            // Lógica do Carrinho
+            const addToCartBtn = target.closest('.add-to-cart-btn');
+            if (addToCartBtn) { const productId = addToCartBtn.dataset.productId; const product = currentDeliveryEstablishment.products.find(p => p.id == productId); addToCart(product); return; }
+            if (target.closest('#floating-cart-button')) { showCartScreen(); return; }
+            if(target.closest('.back-from-cart')) { showDetailsPage(navigationState.category, navigationState.subcategory, navigationState.sector, currentDeliveryEstablishment.id, true); return; }
+            const quantityChangeBtn = target.closest('.cart-quantity-change');
+            if(quantityChangeBtn) { const productId = quantityChangeBtn.dataset.productId; const change = parseInt(quantityChangeBtn.dataset.change); const currentQuantity = cart[productId].quantity; updateCartQuantity(productId, currentQuantity + change); return; }
+            if (target.id === 'send-order-button') {
+                let message = `*--- NOVO PEDIDO ---*\n\nOlá, gostaria de fazer o seguinte pedido:\n\n`; let totalPrice = 0;
+                Object.values(cart).forEach(item => { message += `*${item.quantity}x* ${item.name} - ${formatCurrency(item.price)}\n`; totalPrice += item.quantity * item.price; });
+                message += `\n*TOTAL: ${formatCurrency(totalPrice)}*\n\n-----------------------------\n*PAGAMENTO VIA PIX*\n${currentDeliveryEstablishment.pixInfo}\n\n_Envie o comprovante confirmando o pagamento para iniciarmos o preparo do seu pedido._`;
+                const whatsappUrl = `https://api.whatsapp.com/send?phone=${currentDeliveryEstablishment.phone}&text=${encodeURIComponent(message)}`;
+                window.open(whatsappUrl, '_blank'); return;
+            }
+
+            // --- NAVEGAÇÃO PÚBLICA e ADMIN ---
+            const internalAdLink = target.closest('.internal-ad-link');
+            if (internalAdLink) {
+                event.preventDefault();
+                const path = internalAdLink.dataset.internalLink;
+                const [catKey, subKey, secKey, itemId] = path.split('/');
+                showDetailsPage(catKey, subKey, secKey === 'null' ? null : secKey, itemId);
+                return;
+            }
+            const categoryCard = target.closest('.category-card'); 
+            if (categoryCard) { 
+                const categoryKey = categoryCard.dataset.category;
+                if (categoryKey === 'membros') {
+                    showPinScreen();
+                } else {
+                    showSubcategoriesPage(categoryKey); 
+                }
+                return; 
+            }
+            const subcategoryItem = target.closest('.subcategory-item'); if (subcategoryItem) { const subKey = subcategoryItem.dataset.subcategory; const catKey = navigationState.category; if (appData[catKey].subcategories[subKey].sectors) { showSectorsPage(catKey, subKey); } else { showListingsPage(catKey, subKey); } return; }
+            const sectorItem = target.closest('.sector-item'); if(sectorItem) { showListingsPage(navigationState.category, navigationState.subcategory, sectorItem.dataset.sector); return; }
+            const listingItem = target.closest('.listing-item'); if (listingItem) { showDetailsPage(navigationState.category, navigationState.subcategory, navigationState.sector, listingItem.dataset.id); return; }
+            const searchResultItem = target.closest('.search-result-item');
+            if (searchResultItem) {
+                const { type, category, subcategory, sector, id } = searchResultItem.dataset;
+                document.getElementById('search-input').value = '';
+                document.getElementById('search-results-container').classList.add('hidden');
+                if (type === 'publication') {
+                    showDetailsPage(category, subcategory, sector === 'null' ? null : sector, id);
+                } else if (type === 'subcategory') {
+                    showListingsPage(category, subcategory);
+                } else if (type === 'sector') {
+                    showListingsPage(category, subcategory, sector);
+                }
+                return;
+            }
+            if (target.closest('.back-to-home')) { showScreen('home-screen'); } else if (target.closest('.back-to-subcategories')) { showSubcategoriesPage(navigationState.category); } else if (target.closest('#back-from-listings')) { if (navigationState.sector) { showSectorsPage(navigationState.category, navigationState.subcategory); } else { showSubcategoriesPage(navigationState.category); } } else if (target.closest('.back-from-details')) { showListingsPage(navigationState.category, navigationState.subcategory, navigationState.sector); }
+            if(target.closest('#admin-menu-button')) { document.getElementById('admin-menu').classList.toggle('hidden'); return; }
+            if (target.id === 'submit-login-button') { const p = document.getElementById('admin-password-input'); if (p.value === '1234') { p.value = ''; document.getElementById('login-error-message').classList.add('hidden'); showAdminPanel(); } else { document.getElementById('login-error-message').classList.remove('hidden'); } }
+            if (target.closest('#admin-logout-button')) { showScreen('home-screen'); }
+            if (target.classList.contains('admin-edit-category-btn')) { showCategoryDeepEdit(target.dataset.key); }
+            if (target.classList.contains('admin-delete-category-btn')) { showDeleteConfirmation('category', target.dataset.key); }
+            if (target.id === 'back-to-admin-overview-from-edit' || target.id === 'back-to-admin-overview-from-delivery' || target.id === 'back-to-admin-overview-from-ads' || target.id === 'back-to-admin-overview-from-members') { showAdminPanel(); }
+            if (!target.closest('#admin-menu-button') && !target.closest('#admin-menu')) { document.getElementById('admin-menu').classList.add('hidden'); }
+            if (target.closest('#admin-login-menu-item')) { document.getElementById('admin-menu').classList.add('hidden'); showScreen('login-screen'); return; }
+            if (target.closest('#restore-backup-icon')) { document.getElementById('import-file-input').click(); return; }
+            if (target.id === 'admin-backup-btn') { exportData(); return; }
+            if (target.id === 'save-logo-btn') {
+                const url = document.getElementById('logo-url-input').value;
+                const size = document.getElementById('logo-size-slider').value;
+                if (!appData.appSettings) appData.appSettings = {};
+                appData.appSettings.logoUrl = url;
+                appData.appSettings.logoSize = size;
+                renderHeader();
+                updateVersion();
+            }
+
+
+            // --- ADMIN MODAL FORMS & ACTIONS ---
+            if (target.id === 'admin-add-category-btn') { showModalForm({ type: 'category', title: 'Nova Categoria', fields: [ {id: 'title', label: 'Título'}, {id: 'image', label: 'URL da Imagem'} ], onSave: (p) => { const t = document.getElementById('form-input-title').value, i = document.getElementById('form-input-image').value; if(!t||!i) return; const k = generateKey(t); if(appData[k]) return; appData[k] = { title:t, image:i, subcategories:{} }; updateVersion(); renderHomeScreen(); showAdminPanel(); closeModalForm(); } }); }
+            if (target.id === 'save-category-deep-edit') { const k=document.getElementById('category-key-input').value; appData[k].title=document.getElementById('category-title-input').value; appData[k].image=document.getElementById('category-image-input').value; updateVersion(); showCategoryDeepEdit(k); renderHomeScreen(); }
+            if (target.id === 'add-subcategory-deep-edit') { showModalForm({ type: 'subcategory', title: 'Nova Subcategoria', fields: [{id: 'title', label: 'Título'}], onSave: (p) => { const t=document.getElementById('form-input-title').value; if(!t) return; const k=generateKey(t); if(appData[adminState.editingCategory].subcategories[k]) return; appData[adminState.editingCategory].subcategories[k]={title:t, listings:[]}; updateVersion(); showCategoryDeepEdit(adminState.editingCategory); closeModalForm(); }}); }
+            if (target.classList.contains('admin-edit-subcategory-btn')) { const k = target.dataset.key, s=appData[adminState.editingCategory].subcategories[k]; showModalForm({type:'subcategory', title:'Editar Subcategoria', itemKey:k, fields:[{id:'title', label:'Título', value:s.title}], onSave:(p) => {const t=document.getElementById('form-input-title').value; if(!t)return; appData[adminState.editingCategory].subcategories[p.itemKey].title=t; updateVersion(); showCategoryDeepEdit(adminState.editingCategory); closeModalForm(); }}); }
+            if (target.classList.contains('admin-delete-subcategory-btn')) { showDeleteConfirmation('subcategory', target.dataset.key); }
+            if (target.classList.contains('admin-add-sector-btn')) { const subKey = target.dataset.subkey; const catKey = adminState.editingCategory; const subcategory = appData[catKey].subcategories[subKey]; if (!subcategory.sectors) { const existingListings = subcategory.listings || []; delete subcategory.listings; subcategory.sectors = {}; if (existingListings.length > 0) { subcategory.sectors.geral = { title: 'Geral', listings: existingListings }; } } showModalForm({ type: 'sector', title: 'Novo Setor', fields: [{id: 'title', label: 'Título'}], onSave: () => { const t=document.getElementById('form-input-title').value; if(!t) return; const k=generateKey(t); if(subcategory.sectors[k]) return; subcategory.sectors[k] = {title: t, listings: []}; updateVersion(); showCategoryDeepEdit(adminState.editingCategory); closeModalForm(); }}); return; }
+            if (target.classList.contains('admin-edit-sector-btn')) { const k=target.dataset.key, sk=target.dataset.subkey, s=appData[adminState.editingCategory].subcategories[sk].sectors[k]; showModalForm({ type:'sector', title:'Editar Setor', itemKey:k, subKey:sk, fields:[{id:'title', label:'Título', value:s.title}], onSave:(p) => {const t=document.getElementById('form-input-title').value; if(!t)return; appData[adminState.editingCategory].subcategories[p.subKey].sectors[p.itemKey].title=t; updateVersion(); showCategoryDeepEdit(adminState.editingCategory); closeModalForm();} }); }
+            if (target.classList.contains('admin-delete-sector-btn')) { showDeleteConfirmation('sector', target.dataset.key, target.dataset.subkey); }
+            
+            const getListingFormData = (existingId = null) => {
+                const isDelivery = document.getElementById('delivery-enabled-checkbox').checked;
+                const eF=[]; document.querySelectorAll('.extra-field-row').forEach(r=>{const l=r.querySelector('.extra-field-label').value.trim(), v=r.querySelector('.extra-field-value').value.trim(); if(l&&v)eF.push({label:l, value:v});}); 
+                const data = { id: existingId || Date.now() + Math.random(), name:document.getElementById('form-input-name').value, image:document.getElementById('form-input-image').value, description:document.getElementById('form-input-description').value, phone:document.getElementById('form-input-phone').value, extraFields:eF, isDelivery, pixInfo: isDelivery ? document.getElementById('pix-info-input').value : null };
+                if (isDelivery && !existingId) data.products = [];
+                return data;
+            };
+
+            if (target.classList.contains('admin-add-listing-btn')) { const sk=target.dataset.subkey, sek=target.dataset.sectorkey; showModalForm({ type:'listing', title:'Nova Publicação', fields:[{id:'name',label:'Nome'},{id:'image',label:'URL Imagem'},{id:'description',label:'Descrição'},{id:'phone',label:'Telefone',type:'tel'}], onSave: () => {const d=getListingFormData(); const s=sek ? appData[adminState.editingCategory].subcategories[sk].sectors[sek] : appData[adminState.editingCategory].subcategories[sk]; if (!s.listings) s.listings = []; s.listings.push(d); updateVersion(); showCategoryDeepEdit(adminState.editingCategory); closeModalForm(); }});}
+            if (target.classList.contains('admin-edit-listing-btn')) { const k=target.dataset.key, sk=target.dataset.subkey, sek=target.dataset.sectorkey; const s=sek ? appData[adminState.editingCategory].subcategories[sk].sectors[sek] : appData[adminState.editingCategory].subcategories[sk]; const l=s.listings.find(i=>i.id==k); showModalForm({type:'listing', title:'Editar Publicação', itemKey:k, subKey:sk, sectorKey:sek, fields:[{id:'name',label:'Nome',value:l.name},{id:'image',label:'URL Imagem',value:l.image},{id:'description',label:'Descrição',value:l.description},{id:'phone',label:'Telefone',type:'tel',value:l.phone}], onSave:(p)=>{const idx=s.listings.findIndex(i=>i.id==p.itemKey); if(idx>-1) { const oldData = s.listings[idx]; const newData = getListingFormData(p.itemKey); s.listings[idx] = {...oldData, ...newData}; } updateVersion(); showCategoryDeepEdit(adminState.editingCategory); closeModalForm();}}); }
+            if (target.classList.contains('admin-delete-listing-btn')) { showDeleteConfirmation('listing', target.dataset.key, target.dataset.subkey, target.dataset.sectorkey); }
+            if (!target.closest('#search-wrapper')) { document.getElementById('search-results-container').classList.add('hidden'); }
+
+            // Lógica do Admin Delivery, Ads e Members
+            if (target.id === 'manage-delivery-btn') { showDeliveryAdminPanel(); }
+            if (target.id === 'manage-ads-btn') { showAdsAdminPanel(); }
+            if (target.id === 'manage-members-btn') { showMembersAdminPanel(); }
+            if (target.closest('.edit-delivery-establishment-btn')) { showProductEditor(target.closest('.edit-delivery-establishment-btn').dataset.id); }
+            if (target.id === 'back-to-delivery-list') { showDeliveryAdminPanel(); }
+            if (target.id === 'admin-add-product-btn') { showProductModalForm(); }
+            if (target.closest('.admin-edit-product-btn')) { const prodId = target.closest('.admin-edit-product-btn').dataset.id; showProductModalForm(prodId); }
+            if (target.closest('.admin-delete-product-btn')) { const prodId = target.closest('.admin-delete-product-btn').dataset.id; showDeleteConfirmation('product', null, null, null, prodId); }
+            if (target.id === 'admin-add-ad-btn') { showAdModalForm(); }
+            if (target.closest('.admin-edit-ad-btn')) { showAdModalForm(target.closest('.admin-edit-ad-btn').dataset.id); }
+            if (target.closest('.admin-delete-ad-btn')) { showDeleteConfirmation('ad', target.closest('.admin-delete-ad-btn').dataset.id); }
+            if (target.id === 'admin-add-member-btn') { showMemberModalForm(); }
+            if (target.closest('.admin-edit-member-btn')) { showMemberModalForm(target.closest('.admin-edit-member-btn').dataset.id); }
+            if (target.closest('.admin-delete-member-btn')) { showDeleteConfirmation('member', target.closest('.admin-delete-member-btn').dataset.id); }
+            if (target.closest('.admin-unblock-member-btn')) { unblockMember(target.closest('.admin-unblock-member-btn').dataset.id); }
+            if (target.closest('.admin-send-pass-btn')) { sendMemberPassword(target.closest('.admin-send-pass-btn').dataset.id); }
+        });
+
+        // --- LÓGICA DA BUSCA ---
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            const resultsContainer = document.getElementById('search-results-container');
+            resultsContainer.innerHTML = '';
+            if (query.length < 2) { resultsContainer.classList.add('hidden'); return; }
+
+            const publicationResults = [];
+            const subcategoryResults = [];
+            const sectorResults = [];
+
+            Object.keys(appData).forEach(catKey => {
+                if (catKey === 'ads' || catKey === 'version' || catKey === 'appSettings' || catKey === 'members' || !appData[catKey].subcategories) return;
+
+                Object.keys(appData[catKey].subcategories).forEach(subKey => {
+                    const sub = appData[catKey].subcategories[subKey];
+                    
+                    if (sub.title.toLowerCase().includes(query)) {
+                        subcategoryResults.push({ title: sub.title, catKey, subKey, catTitle: appData[catKey].title });
+                    }
+
+                    if (sub.listings) {
+                        sub.listings.forEach(item => {
+                            if (item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query)) {
+                                publicationResults.push({ ...item, catKey, subKey, sectorKey: null });
+                            }
+                        });
+                    }
+
+                    if (sub.sectors) {
+                        Object.keys(sub.sectors).forEach(secKey => {
+                            const sector = sub.sectors[secKey];
+
+                            if (sector.title.toLowerCase().includes(query)) {
+                                sectorResults.push({ title: sector.title, subTitle: sub.title, catKey, subKey, secKey });
+                            }
+                            
+                            if (sector.listings) {
+                                sector.listings.forEach(item => {
+                                    if (item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query)) {
+                                        publicationResults.push({ ...item, catKey, subKey, sectorKey: secKey });
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            });
+
+            let html = '';
+            
+            if (publicationResults.length > 0) {
+                html += `<h4 class="px-4 py-2 text-xs font-bold text-gray-500 uppercase">Publicações</h4>`;
+                publicationResults.forEach(item => {
+                    html += `<div class="search-result-item p-4 hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer border-b" data-type="publication" data-category="${item.catKey}" data-subcategory="${item.subKey}" data-sector="${item.sectorKey || 'null'}" data-id="${item.id}"><p class="font-semibold">${item.name}</p><p class="text-sm text-gray-500">${appData[item.catKey].subcategories[item.subKey].title}</p></div>`;
+                });
+            }
+
+            if (subcategoryResults.length > 0) {
+                html += `<h4 class="px-4 pt-4 pb-2 text-xs font-bold text-gray-500 uppercase">Categorias</h4>`;
+                subcategoryResults.forEach(item => {
+                    html += `<div class="search-result-item p-4 hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer border-b" data-type="subcategory" data-category="${item.catKey}" data-subcategory="${item.subKey}"><p class="font-semibold">${item.title}</p><p class="text-sm text-gray-500">${item.catTitle}</p></div>`;
+                });
+            }
+
+            if (sectorResults.length > 0) {
+                html += `<h4 class="px-4 pt-4 pb-2 text-xs font-bold text-gray-500 uppercase">Setores</h4>`;
+                sectorResults.forEach(item => {
+                    html += `<div class="search-result-item p-4 hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer border-b" data-type="sector" data-category="${item.catKey}" data-subcategory="${item.subKey}" data-sector="${item.secKey}"><p class="font-semibold">${item.title}</p><p class="text-sm text-gray-500">${item.subTitle}</p></div>`;
+                });
+            }
+
+            if (html === '') {
+                resultsContainer.innerHTML = `<p class="p-4 text-center text-gray-500">Nenhum resultado.</p>`;
+            } else {
+                resultsContainer.innerHTML = html;
+            }
+            
+            resultsContainer.classList.remove('hidden');
+        });
+        
+        // --- FUNÇÕES DE DELIVERY, ADS & MEMBERS ADMIN ---
+        function findEstablishmentById(id) {
+            for (const cat of Object.values(appData)) {
+                if (cat.subcategories) {
+                    for (const sub of Object.values(cat.subcategories)) {
+                        if (sub.listings) { const establishment = sub.listings.find(l => l.id == id); if(establishment) return establishment; }
+                        if (sub.sectors) { for (const sec of Object.values(sub.sectors)) { const establishment = sec.listings.find(l => l.id == id); if(establishment) return establishment; } }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function showDeliveryAdminPanel() {
+            adminOverviewPanel.classList.add('hidden');
+            adminDeliveryPanel.classList.remove('hidden');
+            const listContainer = document.getElementById('delivery-establishments-list');
+            listContainer.innerHTML = '';
+            let hasDelivery = false;
+            Object.values(appData).forEach(cat => {
+                if (cat.subcategories) {
+                    Object.values(cat.subcategories).forEach(sub => {
+                        const processListings = (listings) => {
+                            (listings || []).forEach(item => { if (item.isDelivery) { hasDelivery = true; listContainer.innerHTML += `<div class="flex items-center justify-between bg-white dark:bg-gray-700 p-2 rounded-lg"><span class="font-semibold">${item.name}</span><button class="edit-delivery-establishment-btn text-blue-500 hover:underline clickable" data-id="${item.id}">Editar Cardápio</button></div>`; } });
+                        };
+                        processListings(sub.listings);
+                        if(sub.sectors) Object.values(sub.sectors).forEach(sec => processListings(sec.listings));
+                    });
+                }
+            });
+            if (!hasDelivery) { listContainer.innerHTML = `<p class="text-center text-gray-500">Nenhum estabelecimento com delivery habilitado.</p>`; }
+        }
+        
+        function showProductEditor(establishmentId) {
+            adminState.editingEstablishmentId = establishmentId;
+            adminDeliveryPanel.classList.add('hidden');
+            adminProductEditorPanel.classList.remove('hidden');
+            const establishment = findEstablishmentById(establishmentId);
+            if (!establishment) { showDeliveryAdminPanel(); return; }
+
+            let productsHTML = '';
+            (establishment.products || []).forEach(product => {
+                productsHTML += `<div class="flex items-start bg-white dark:bg-gray-700 p-3 rounded-lg gap-3"><img src="${product.image}" class="w-16 h-16 rounded-md object-cover"><div class="flex-grow"><p class="font-bold">${product.name} - ${formatCurrency(product.price)}</p><p class="text-sm text-gray-600 dark:text-gray-400">${product.description}</p></div><div class="flex flex-col space-y-2"><button class="admin-edit-product-btn text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 py-1 px-2 rounded clickable" data-id="${product.id}">Editar</button><button class="admin-delete-product-btn text-xs bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 py-1 px-2 rounded clickable" data-id="${product.id}">Excluir</button></div></div>`;
+            });
+
+            const editorHTML = `<button id="back-to-delivery-list" class="font-semibold text-blue-600 dark:text-blue-400 hover:underline clickable">&larr; Voltar para a lista</button><div class="bg-gray-200 dark:bg-gray-800 p-4 rounded-lg"><h3 class="text-lg font-semibold mb-3">Editando Cardápio de "${establishment.name}"</h3><div class="space-y-3">${productsHTML}</div><button id="admin-add-product-btn" class="mt-4 w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors clickable">+ Adicionar Novo Produto</button></div>`;
+            adminProductEditorPanel.innerHTML = editorHTML;
+        }
+
+        function showProductModalForm(productId = null) {
+            const establishment = findEstablishmentById(adminState.editingEstablishmentId);
+            const isEditing = productId !== null;
+            const product = isEditing ? establishment.products.find(p => p.id == productId) : {};
+            const title = isEditing ? "Editar Produto" : "Novo Produto";
+
+            const fields = [ {id: 'name', label: 'Nome', value: product.name || ''}, {id: 'description', label: 'Descrição', value: product.description || ''}, {id: 'price', label: 'Preço (Ex: 45.50)', type: 'number', value: product.price || ''}, {id: 'image', label: 'URL da Imagem', value: product.image || ''} ];
+            showModalForm({ type: 'product', title: title, fields: fields, onSave: () => { const newProductData = { id: isEditing ? productId : Date.now() + Math.random(), name: document.getElementById('form-input-name').value, description: document.getElementById('form-input-description').value, price: parseFloat(document.getElementById('form-input-price').value), image: document.getElementById('form-input-image').value }; if (!newProductData.name || isNaN(newProductData.price)) return; if (isEditing) { const prodIndex = establishment.products.findIndex(p => p.id == productId); if (prodIndex > -1) establishment.products[prodIndex] = newProductData; } else { if (!establishment.products) establishment.products = []; establishment.products.push(newProductData); } updateVersion(); showProductEditor(adminState.editingEstablishmentId); closeModalForm(); } });
+        }
+        
+        function getAllListings() {
+            const allListings = [];
+            Object.keys(appData).forEach(catKey => {
+                if (catKey === 'ads' || catKey === 'version' || catKey === 'appSettings' || catKey === 'members' || !appData[catKey].subcategories) return;
+                Object.keys(appData[catKey].subcategories).forEach(subKey => {
+                    const sub = appData[catKey].subcategories[subKey];
+                    const process = (listings, sectorKey = null) => {
+                        (listings || []).forEach(item => {
+                            allListings.push({
+                                name: `${item.name} (${sub.title})`,
+                                path: `${catKey}/${subKey}/${sectorKey || 'null'}/${item.id}`
+                            });
+                        });
+                    };
+                    process(sub.listings);
+                    if (sub.sectors) {
+                        Object.keys(sub.sectors).forEach(secKey => process(sub.sectors[secKey].listings, secKey));
+                    }
+                });
+            });
+            return allListings;
+        }
+
+        function showAdsAdminPanel() {
+            adminOverviewPanel.classList.add('hidden');
+            adminAdsPanel.classList.remove('hidden');
+            renderAdsAdminList();
+        }
+
+        function renderAdsAdminList() {
+            const listContainer = document.getElementById('admin-ads-list');
+            listContainer.innerHTML = '';
+            if (appData.ads.length === 0) {
+                listContainer.innerHTML = `<p class="text-center text-gray-500">Nenhum banner cadastrado.</p>`;
+                return;
+            }
+            appData.ads.forEach(ad => {
+                listContainer.innerHTML += `
+                <div class="flex items-center bg-white dark:bg-gray-700 p-2 rounded-lg gap-3">
+                    <img src="${ad.image}" class="w-24 h-12 object-cover rounded">
+                    <div class="flex-grow text-sm truncate">
+                        <p class="font-semibold">Link:</p>
+                        <a href="#" data-internal-link="${ad.link}" class="internal-ad-link text-blue-500 hover:underline">Publicação interna</a>
+                    </div>
+                    <div class="flex flex-col space-y-1">
+                        <button class="admin-edit-ad-btn text-xs bg-blue-100 text-blue-700 py-1 px-2 rounded clickable" data-id="${ad.id}">Editar</button>
+                        <button class="admin-delete-ad-btn text-xs bg-red-100 text-red-700 py-1 px-2 rounded clickable" data-id="${ad.id}">Excluir</button>
+                    </div>
+                </div>`;
+            });
+        }
+        
+        function showAdModalForm(adId = null) {
+            const isEditing = adId !== null;
+            const ad = isEditing ? appData.ads.find(a => a.id == adId) : {};
+            const title = isEditing ? 'Editar Banner' : 'Novo Banner';
+            
+            let listingsOptions = '';
+            getAllListings().forEach(listing => {
+                const selected = (ad.link === listing.path) ? 'selected' : '';
+                listingsOptions += `<option value="${listing.path}" ${selected}>${listing.name}</option>`;
+            });
+
+            const fields = [
+                {id: 'image', label: 'URL da Imagem', value: ad.image || ''},
+                {id: 'link', label: 'Link para a Publicação', type: 'select', options: `<option value="">Selecione...</option>${listingsOptions}`}
+            ];
+            
+            showModalForm({
+                type: 'ad',
+                title: title,
+                fields: fields,
+                onSave: () => {
+                    const newAdData = {
+                        id: isEditing ? adId : Date.now() + Math.random(),
+                        image: document.getElementById('form-input-image').value,
+                        link: document.getElementById('form-select-link').value
+                    };
+                    if (!newAdData.image || !newAdData.link) return;
+
+                    if (isEditing) {
+                        const adIndex = appData.ads.findIndex(a => a.id == adId);
+                        if (adIndex > -1) appData.ads[adIndex] = newAdData;
+                    } else {
+                        appData.ads.push(newAdData);
+                    }
+                    updateVersion();
+                    renderAdBanner();
+                    showAdsAdminPanel();
+                    closeModalForm();
+                }
+            });
+        }
+        
+        function showConfirmationModal(title, message, onConfirm) {
+            const modalHTML = `<div id="confirmation-modal-container" class="fixed inset-0 z-30 flex items-center justify-center p-4"><div class="bg-white dark:bg-gray-800 p-6 rounded-lg space-y-4 w-full max-w-sm shadow-xl"><h4 class="text-lg font-bold text-gray-900 dark:text-gray-100">${title}</h4><p class="text-sm text-gray-600 dark:text-gray-300">${message}</p><div class="flex justify-end space-x-3 pt-4"><button id="cancel-confirmation-btn" type="button" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 clickable">Cancelar</button><button id="confirm-action-btn" type="button" class="bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 clickable">Confirmar</button></div></div></div><div id="confirmation-overlay" class="fixed inset-0 bg-black/60 z-20"></div>`;
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+            const closeModal = () => { document.getElementById('confirmation-modal-container')?.remove(); document.getElementById('confirmation-overlay')?.remove(); };
+            document.getElementById('confirm-action-btn').onclick = () => { onConfirm(); closeModal(); };
+            document.getElementById('cancel-confirmation-btn').onclick = closeModal;
+            document.getElementById('confirmation-overlay').onclick = closeModal;
+        }
+
+        function exportData() {
+            try {
+                const dataStr = JSON.stringify(appData, null, 2);
+                const dataBlob = new Blob([dataStr], {type: "application/json"});
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                const date = new Date();
+                const timestamp = `${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate().toString().padStart(2,'0')}`;
+                link.download = `super-app-mdr-dados-${timestamp}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } catch (error) { console.error("Erro ao exportar dados:", error); }
+        }
+
+        const importFileInput = document.getElementById('import-file-input');
+        importFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    showConfirmationModal('Importar Dados', 'Tem certeza que deseja substituir todos os dados atuais? Esta ação não pode ser desfeita.',
+                        async () => {
+                            Object.keys(appData).forEach(key => delete appData[key]);
+                            Object.assign(appData, importedData);
+                            if (!appData.version) appData.version = '1.0';
+                            saveData();
+                            await loadData();
+                            renderHomeScreen();
+                            if (document.getElementById('admin-screen').classList.contains('active')) { showAdminPanel(); }
+                        }
+                    );
+                } catch (error) { console.error("Erro ao importar o arquivo:", error); } 
+                finally { importFileInput.value = ''; }
+            };
+            reader.readAsText(file);
+        });
+
+        document.getElementById('admin-password-input').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault(); 
+                document.getElementById('submit-login-button').click();
+            }
+        });
+
+
+        // --- INICIALIZAÇÃO ---
+        window.onload = async () => {
+            loadData();
+        };
+    </script>
+</body>
+</html>
+
